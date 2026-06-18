@@ -1,0 +1,31 @@
+name: crowsnest
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    ports:
+      - "8123:8123" # HTTP interface (crowsnest connects here)
+      - "9000:9000" # native protocol
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - ../migrations:/docker-entrypoint-initdb.d:ro # DDL auto-runs on first init
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - clickhouse
+
+volumes:
+  ch-data:
+  grafana-data:
