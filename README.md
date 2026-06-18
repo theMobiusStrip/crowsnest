@@ -1,8 +1,8 @@
 # crowsnest
 
-Local-first ingest + detection service for [coble](../coble) fleet logs — it watches the
-fleet of cobles, runs detections, and surfaces daily results. Starts local; architected to
-scale to multi-endpoint without a rewrite. See **[PLAN.md](./PLAN.md)**.
+Local-first ingest + detection service for [coble](https://github.com/theMobiusStrip/coble)
+fleet logs — it watches the fleet of cobles, runs detections, and surfaces daily results.
+Starts local; architected to scale to multi-endpoint without a rewrite.
 
 ## Status
 
@@ -31,6 +31,17 @@ curl -sS localhost:8787/v1/events -H 'content-type: application/json' -d '{
 }'   # → {"accepted":1}
 ```
 
-## Layout
+## Architecture
 
-See [PLAN.md](./PLAN.md) for the architecture, the scalability seams, and the milestones.
+A stateless HTTP ingest writes events to a pluggable `Store` (ClickHouse), decoupled from a
+scheduled detection runner that emits `findings`. Network-shaped and stateless from day one,
+so it scales from this single local service to multi-endpoint without a rewrite.
+
+```text
+crowsnest/
+  src/schema.ts         # zod Event contract (shared with coble's sink)
+  src/ingest/server.ts  # POST /v1/events (stateless)
+  src/store/            # Store interface + ClickHouse impl
+  migrations/           # ClickHouse DDL (events, findings)
+  docker/               # docker-compose: ClickHouse + Grafana
+```
