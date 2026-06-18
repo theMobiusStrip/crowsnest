@@ -1,5 +1,19 @@
-// crowsnest entrypoint.
-// M1 wires the stateless ingest server (POST /v1/events → Store) here.
-import { SCHEMA_VERSION } from "./schema.js";
+import { serve } from "@hono/node-server";
+import { loadConfig } from "./config.js";
+import { createServer } from "./ingest/server.js";
+import { createClickHouseStore } from "./store/clickhouse.js";
 
-console.log(`crowsnest (event schema v${SCHEMA_VERSION}) — ingest server not wired yet (M1).`);
+const cfg = loadConfig();
+const store = createClickHouseStore({ url: cfg.clickhouseUrl, database: cfg.clickhouseDb });
+const app = createServer(store);
+
+serve({ fetch: app.fetch, port: cfg.port }, (info) => {
+  console.log(`crowsnest ingest listening on :${info.port} → ClickHouse ${cfg.clickhouseUrl}/${cfg.clickhouseDb}`);
+});
+
+const shutdown = async () => {
+  await store.close().catch(() => {});
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
