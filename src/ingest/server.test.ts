@@ -13,6 +13,7 @@ function memoryStore(opts: { failAppend?: boolean; pingOk?: boolean } = {}): Sto
       rows.push(...events);
     },
     async appendDetections() {},
+    async appendTriage() {},
     async query() {
       return [];
     },

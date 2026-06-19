@@ -14,6 +14,7 @@ function mockStore(
   return {
     async append() {},
     async appendDetections() {},
+    async appendTriage() {},
     async query(sql: string, params?: Record<string, unknown>) {
       opts.calls?.push({ sql, params });
       if (opts.throwOnQuery) throw new Error("clickhouse down");
@@ -145,6 +146,30 @@ describe("fleet-view endpoints", () => {
     const body = (await res.json()) as { incidents: Array<Record<string, unknown>> };
     // score = worst_rank(3) × distinct_rules(2) × sensitivity(3) × burst(4/min) = 72
     expect(body.incidents[0]).toMatchObject({ worst_severity: "high", sensitivity: 3, burst: 4, score: 72 });
+  });
+
+  it("GET /v1/incidents attaches advisory triage when present", async () => {
+    const row = {
+      session_id: "s1",
+      endpoint_user: "evan",
+      endpoint_host: "prod-1",
+      detections: "1",
+      distinct_rules: "1",
+      rules: ["denied-dangerous"],
+      worst_rank: "3",
+      worst_severity: "high",
+      started: "2026-06-19 00:00:00",
+      ended: "2026-06-19 00:00:30",
+      span_seconds: "30",
+      verdict: "needs_review",
+      score: "60",
+      rationale: "looks odd",
+      model: "mock",
+    };
+    const res = await createServer(mockStore([row])).request("/v1/incidents");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { incidents: Array<Record<string, unknown>> };
+    expect(body.incidents[0].triage).toMatchObject({ verdict: "needs_review", score: 60, model: "mock" });
   });
 });
 

@@ -27,3 +27,26 @@ export function parseIntervalMs(raw: string | undefined): number {
   }
   return n;
 }
+
+export interface TriageConfig {
+  enabled: boolean;
+  provider: "anthropic" | "mock";
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+}
+
+/**
+ * LLM triage config. Default OFF — the service makes NO external model calls unless
+ * TRIAGE_ENABLED is truthy. `provider=mock` runs the deterministic stub (no key needed).
+ * ANTHROPIC_BASE_URL is customizable (proxy / Anthropic-compatible gateway / self-host).
+ */
+export function loadTriageConfig(env: NodeJS.ProcessEnv = process.env): TriageConfig {
+  return {
+    enabled: /^(1|true|yes|on)$/i.test(env.TRIAGE_ENABLED ?? ""),
+    provider: env.TRIAGE_PROVIDER === "mock" ? "mock" : "anthropic",
+    model: env.TRIAGE_MODEL ?? "claude-haiku-4-5",
+    apiKey: env.ANTHROPIC_API_KEY ?? "",
+    baseUrl: (env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/+$/, ""),
+  };
+}
