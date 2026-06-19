@@ -1,3 +1,4 @@
+import { readSecrets } from "./secrets.js";
 import type { Store } from "./store/store.js";
 
 export interface Config {
@@ -54,10 +55,10 @@ export function loadTriageConfig(env: NodeJS.ProcessEnv = process.env): TriageCo
 }
 
 /**
- * Effective triage config = env defaults (loadTriageConfig) overlaid with runtime overrides from
- * the `config` table (set via the admin console). The API key and base URL stay **env-only** —
- * never overridable from the DB (a mutable base URL on an unauthenticated console could exfiltrate
- * the key).
+ * Effective triage config = env defaults ⊕ `config` table (enabled/model) ⊕ local secrets file
+ * (base URL + API key, set via the admin console). The key/base URL are NEVER read from the DB —
+ * only the gitignored 0600 secrets file or env. (Editing them over the unauthenticated console is a
+ * deliberate local-only trade-off — a mutable base URL sends the key wherever it points; see SECURITY.md.)
  */
 export async function effectiveTriageConfig(store: Store): Promise<TriageConfig> {
   const base = loadTriageConfig();
@@ -74,10 +75,13 @@ export async function effectiveTriageConfig(store: Store): Promise<TriageConfig>
     if (/unknown_table|does\s?n'?t exist|not found/i.test(String(e))) return base;
     throw e;
   }
+  const secrets = readSecrets();
   return {
     ...base,
     enabled: "triage.enabled" in overrides ? /^(1|true|yes|on)$/i.test(overrides["triage.enabled"]) : base.enabled,
     model: overrides["triage.model"] || base.model,
-    // baseUrl + apiKey: env only, never from the DB
+    // baseUrl + apiKey come from the local secrets file (admin console) or env — NEVER the DB.
+    baseUrl: (secrets.baseUrl || base.baseUrl).replace(/\/+$/, ""),
+    apiKey: secrets.apiKey || base.apiKey,
   };
 }

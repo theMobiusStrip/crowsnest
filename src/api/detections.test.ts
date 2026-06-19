@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import { createServer } from "../ingest/server.js";
+import { readSecrets } from "../secrets.js";
 import type { Store } from "../store/store.js";
 
 type QueryCall = { sql: string; params?: Record<string, unknown> };
@@ -231,19 +235,42 @@ describe("config + meta", () => {
     expect(body.triage).not.toHaveProperty("apiKey");
   });
 
-  it("POST /v1/config persists enable + model (not base URL or key)", async () => {
-    const config: { key: string; value: string }[] = [];
-    const res = await createServer(mockStore([], { config })).request("/v1/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabled: true, model: "claude-opus-4-7", baseUrl: "http://evil", apiKey: "x" }),
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true });
-    expect(config).toEqual([
-      { key: "triage.enabled", value: "1" },
-      { key: "triage.model", value: "claude-opus-4-7" },
-    ]);
+  it("POST /v1/config routes enable+model to the DB and base URL+key to the secrets file", async () => {
+    const tmp = join(tmpdir(), `cn-secrets-test-${Date.now()}.json`);
+    process.env.CROWSNEST_SECRETS = tmp;
+    try {
+      const config: { key: string; value: string }[] = [];
+      const res = await createServer(mockStore([], { config })).request("/v1/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: true, model: "claude-opus-4-7", baseUrl: "http://127.0.0.1:3456", apiKey: "k" }),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true });
+      expect(config).toEqual([
+        { key: "triage.enabled", value: "1" },
+        { key: "triage.model", value: "claude-opus-4-7" },
+      ]); // base URL + key are NOT in the DB
+      expect(readSecrets(tmp)).toEqual({ baseUrl: "http://127.0.0.1:3456", apiKey: "k" }); // they're in the file
+    } finally {
+      delete process.env.CROWSNEST_SECRETS;
+      rmSync(tmp, { force: true });
+    }
+  });
+
+  it("POST /v1/restart returns 200 and schedules a process exit", async () => {
+    vi.useFakeTimers();
+    const exit = vi.spyOn(process, "exit").mockImplementation(((() => undefined) as never));
+    try {
+      const res = await createServer(mockStore()).request("/v1/restart", { method: "POST" });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, restarting: true });
+      vi.runAllTimers();
+      expect(exit).toHaveBeenCalledWith(0);
+    } finally {
+      exit.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("POST /v1/config rejects invalid input", async () => {

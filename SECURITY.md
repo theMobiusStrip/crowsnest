@@ -38,7 +38,7 @@ Each answers a *different* question; they are complementary, not redundant.
 | **Parameterized SQL** | "Can a field break out of a query?" | ClickHouse `query_params` / `{k:String}` (`src/store/clickhouse.ts`, `src/api/detections.ts`) | **Yes**, for query *values* |
 | **HTML escaping** | "Can a field run in the operator's browser?" | client-side `esc()` in the dashboard (`src/api/spyglass.ts`, `src/api/incident.ts`) | **Yes**, for stored XSS — only as long as *every* field passes through it |
 | **Spotlighting + advisory triage** | "Is this data or an instruction?" | escaped `<incident>` envelope; output never edits a detection (`src/triage/llm.ts`) | No — injection defense-in-depth + blast-radius limit |
-| **Egress gate** | "Does anything leave the host?" | triage default-OFF; no call without key (`src/config.ts`) | **Yes**, for exfiltration |
+| **Egress gate** | "Does anything leave the host?" | triage default-OFF; no call without a key (`src/config.ts`) — but enable + base URL are console-settable (unauth), so this holds **only behind auth / on a trusted host** | **Yes**, for exfiltration |
 | **Detection rules** | "Is this activity suspicious?" | deterministic SQL (`src/detection/rules.ts`) | No — a signal, bypassable |
 
 Triage sits **beside** the deterministic pipeline, never above it: the rules decide what a
@@ -47,13 +47,14 @@ A triage failure, timeout, or injection can therefore never suppress or downgrad
 
 ## Honest limitations (do not overclaim)
 
-- **No authentication or authorization.** Ingest, the read API, manual triage, and the admin
-  config console (`POST /v1/config`) are all open to anyone who can reach the port. Notably an
-  unauthenticated caller can **enable triage** — flipping the egress gate on — so on an untrusted
-  network this escalates to triggering outbound calls (with the env key, to the env base URL) on
-  the next run. (The key and base URL themselves are env-only and never settable over the wire,
-  which bounds it to the operator's chosen endpoint.) Documented MVP non-goal ("behind the trust
-  boundary"): run on localhost / a trusted network and add a front door before exposure.
+- **No authentication or authorization.** Ingest, the read API, manual triage, the admin config
+  console (`POST /v1/config`), and restart (`POST /v1/restart`) are all open to anyone who can reach
+  the port. The console can set the **base URL and API key** (persisted to a gitignored `0600` file,
+  never the DB, never returned) and **enable triage** — so an unauthenticated caller on an untrusted
+  network can point triage at their own endpoint and **exfiltrate the key**, or **restart/kill** the
+  process. This is a deliberate **local-only** trade-off (console-editable config was chosen for
+  convenience): run crowsnest on localhost / a trusted network, behind a front door, before any
+  exposure. Authentication is the P2 fix that makes the console safe to expose.
 - **XSS safety is client-side and total-coverage.** The dashboard escapes untrusted fields
   with an inlined `esc()` in its `<script>`; there is no CSP header. A *single* untrusted field
   interpolated into HTML without `esc()` is stored XSS. New fields/columns must be escaped at
