@@ -1,0 +1,32 @@
+{
+  "correlations": [
+    {
+      "rule": "dangerous_shell_cmd",
+      "hosts": 3,
+      "detections": 8,
+      "host_list": [
+        "prod-api-01",
+        "ci-runner-07",
+        "stg-batch-03"
+      ]
+    },
+    {
+      "rule": "secret_in_prompt",
+      "hosts": 2,
+      "detections": 5,
+      "host_list": [
+        "prod-api-01",
+        "ci-runner-07"
+      ]
+    },
+    {
+      "rule": "prompt_injection",
+      "hosts": 2,
+      "detections": 4,
+      "host_list": [
+        "prod-web-02",
+        "stg-batch-03"
+      ]
+    }
+  ]
+}

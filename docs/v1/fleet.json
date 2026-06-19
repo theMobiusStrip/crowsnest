@@ -1,0 +1,85 @@
+{
+  "fleet": [
+    {
+      "endpoint_host": "prod-api-01",
+      "events": 5120,
+      "last_seen": "2026-06-19 14:32:11",
+      "age_seconds": 1200,
+      "health": "live",
+      "stale": false,
+      "sensitivity": 3,
+      "detections": 18,
+      "crit": 4,
+      "high": 6,
+      "medium": 6,
+      "low": 2,
+      "risk": 144
+    },
+    {
+      "endpoint_host": "prod-web-02",
+      "events": 3890,
+      "last_seen": "2026-06-19 14:18:03",
+      "age_seconds": 2040,
+      "health": "live",
+      "stale": false,
+      "sensitivity": 3,
+      "detections": 9,
+      "crit": 1,
+      "high": 3,
+      "medium": 3,
+      "low": 2,
+      "risk": 63
+    },
+    {
+      "endpoint_host": "ci-runner-07",
+      "events": 1470,
+      "last_seen": "2026-06-19 02:10:44",
+      "age_seconds": 45000,
+      "health": "idle",
+      "stale": false,
+      "sensitivity": 2,
+      "detections": 12,
+      "crit": 1,
+      "high": 2,
+      "medium": 5,
+      "low": 4,
+      "risk": 48
+    },
+    {
+      "endpoint_host": "stg-batch-03",
+      "events": 820,
+      "last_seen": "2026-06-18 20:55:12",
+      "age_seconds": 64600,
+      "health": "idle",
+      "stale": false,
+      "sensitivity": 2,
+      "detections": 5,
+      "crit": 0,
+      "high": 1,
+      "medium": 2,
+      "low": 2,
+      "risk": 18
+    },
+    {
+      "endpoint_host": "dev-laptop-evan",
+      "events": 210,
+      "last_seen": "2026-06-16 09:12:30",
+      "age_seconds": 281000,
+      "health": "stale",
+      "stale": true,
+      "sensitivity": 1,
+      "detections": 3,
+      "crit": 0,
+      "high": 0,
+      "medium": 2,
+      "low": 1,
+      "risk": 5
+    }
+  ],
+  "health": {
+    "hosts": 5,
+    "live": 2,
+    "idle": 2,
+    "stale": 1
+  }
+}

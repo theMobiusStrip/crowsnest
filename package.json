@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
+    "build:demo": "node scripts/build-demo.mjs",
     "start": "node dist/index.js",
     "detect": "tsx src/detect.ts",
     "triage": "tsx src/triage.ts",

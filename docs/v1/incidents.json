@@ -1,0 +1,124 @@
+{
+  "incidents": [
+    {
+      "session_id": "coble-7f3a9c",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "detections": 6,
+      "distinct_rules": 3,
+      "rules": [
+        "dangerous_shell_cmd",
+        "data_exfil_curl",
+        "secret_in_prompt"
+      ],
+      "worst_rank": 4,
+      "worst_severity": "critical",
+      "started": "2026-06-19 13:40:02",
+      "ended": "2026-06-19 13:48:02",
+      "span_seconds": 480,
+      "sensitivity": 3,
+      "burst": 0.75,
+      "score": 36,
+      "triage": {
+        "verdict": "likely_malicious",
+        "score": 88,
+        "model": "claude-haiku-4-5",
+        "rationale": "Agent read ~/.aws/credentials, then piped the secret into a curl POST to an external host. Read→exfil chain across 3 rules in one session — consistent with credential exfiltration, not a benign tool call."
+      }
+    },
+    {
+      "session_id": "coble-2b81e0",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-web-02",
+      "detections": 4,
+      "distinct_rules": 2,
+      "rules": [
+        "prompt_injection",
+        "unsafe_tool_call"
+      ],
+      "worst_rank": 3,
+      "worst_severity": "high",
+      "started": "2026-06-19 11:02:10",
+      "ended": "2026-06-19 11:22:10",
+      "span_seconds": 1200,
+      "sensitivity": 3,
+      "burst": 0.2,
+      "score": 18,
+      "triage": {
+        "verdict": "needs_review",
+        "score": 55,
+        "model": "claude-haiku-4-5",
+        "rationale": "Fetched web content contained injected instructions; agent then invoked a file-write tool. No exfil observed, but the tool call path warrants a human look."
+      }
+    },
+    {
+      "session_id": "coble-9d44f1",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "detections": 5,
+      "distinct_rules": 2,
+      "rules": [
+        "secret_in_prompt",
+        "pii_in_output"
+      ],
+      "worst_rank": 3,
+      "worst_severity": "high",
+      "started": "2026-06-19 01:55:00",
+      "ended": "2026-06-19 02:00:00",
+      "span_seconds": 300,
+      "sensitivity": 2,
+      "burst": 1,
+      "score": 12,
+      "triage": {
+        "verdict": "needs_review",
+        "score": 48,
+        "model": "claude-haiku-4-5",
+        "rationale": "A CI secret appeared in the prompt and a customer email surfaced in output. Likely a logging/redaction gap in the pipeline rather than an attack."
+      }
+    },
+    {
+      "session_id": "coble-1a05bd",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "detections": 2,
+      "distinct_rules": 1,
+      "rules": [
+        "unsafe_tool_call"
+      ],
+      "worst_rank": 2,
+      "worst_severity": "medium",
+      "started": "2026-06-19 09:15:30",
+      "ended": "2026-06-19 09:16:30",
+      "span_seconds": 60,
+      "sensitivity": 3,
+      "burst": 2,
+      "score": 12,
+      "triage": {
+        "verdict": "likely_benign",
+        "score": 22,
+        "model": "claude-haiku-4-5",
+        "rationale": "Tool call flagged by the static rule, but arguments stayed within an allowlisted path. Most likely a false positive."
+      }
+    },
+    {
+      "session_id": "coble-5e7c20",
+      "endpoint_user": "agent",
+      "endpoint_host": "stg-batch-03",
+      "detections": 3,
+      "distinct_rules": 2,
+      "rules": [
+        "dangerous_shell_cmd",
+        "prompt_injection"
+      ],
+      "worst_rank": 2,
+      "worst_severity": "medium",
+      "started": "2026-06-18 20:40:00",
+      "ended": "2026-06-18 20:55:00",
+      "span_seconds": 900,
+      "sensitivity": 2,
+      "burst": 0.2,
+      "score": 8,
+      "triage": null
+    }
+  ]
+}
