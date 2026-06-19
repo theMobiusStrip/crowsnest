@@ -1,0 +1,61 @@
+{
+  "incident": {
+    "session_id": "coble-3c12ab",
+    "endpoint_host": "prod-api-01",
+    "distinct_rules": 1,
+    "rules": [
+      "sandbox_escape_attempt"
+    ],
+    "worst_rank": 4,
+    "worst_severity": "critical",
+    "started": "2026-06-19 09:39:48",
+    "ended": "2026-06-19 09:40:18",
+    "span_seconds": 30,
+    "sensitivity": 3,
+    "burst": 2,
+    "score": 24,
+    "endpoint_user": "agent",
+    "detections": 2
+  },
+  "detections": [
+    {
+      "detection_id": "coble-3c12ab-01",
+      "event_id": "coble-3c12ab-e01",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "session_id": "coble-3c12ab",
+      "rule": "sandbox_escape_attempt",
+      "severity": "critical",
+      "ts": "2026-06-19 09:40:18",
+      "summary": "attempt to mount host docker socket",
+      "detail": "cmd referenced /var/run/docker.sock from inside the sandbox"
+    },
+    {
+      "detection_id": "coble-3c12ab-02",
+      "event_id": "coble-3c12ab-e02",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "session_id": "coble-3c12ab",
+      "rule": "sandbox_escape_attempt",
+      "severity": "high",
+      "ts": "2026-06-19 09:39:50",
+      "summary": "ptrace of a sibling process",
+      "detail": "ptrace(PTRACE_ATTACH) against a non-child pid"
+    }
+  ],
+  "triage": {
+    "verdict": "likely_malicious",
+    "score": 80,
+    "model": "claude-haiku-4-5",
+    "rationale": "Agent referenced the host Docker socket from inside the sandbox — a container-escape probe. Blocked by the sandbox, but intent is clearly escape."
+  },
+  "triageHistory": [
+    {
+      "created_at": "2026-06-19 09:40:18",
+      "model": "claude-haiku-4-5",
+      "verdict": "likely_malicious",
+      "score": 80,
+      "rationale": "Agent referenced the host Docker socket from inside the sandbox — a container-escape probe. Blocked by the sandbox, but intent is clearly escape."
+    }
+  ]
+}

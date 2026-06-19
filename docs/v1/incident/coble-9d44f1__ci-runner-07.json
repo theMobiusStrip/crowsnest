@@ -1,0 +1,98 @@
+{
+  "incident": {
+    "session_id": "coble-9d44f1",
+    "endpoint_host": "ci-runner-07",
+    "distinct_rules": 2,
+    "rules": [
+      "secret_in_prompt",
+      "pii_in_output"
+    ],
+    "worst_rank": 3,
+    "worst_severity": "high",
+    "started": "2026-06-19 01:55:00",
+    "ended": "2026-06-19 02:00:00",
+    "span_seconds": 300,
+    "sensitivity": 2,
+    "burst": 1,
+    "score": 12,
+    "endpoint_user": "agent",
+    "detections": 5
+  },
+  "detections": [
+    {
+      "detection_id": "coble-9d44f1-01",
+      "event_id": "coble-9d44f1-e01",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "session_id": "coble-9d44f1",
+      "rule": "secret_in_prompt",
+      "severity": "high",
+      "ts": "2026-06-19 01:59:30",
+      "summary": "CI deploy token present in prompt",
+      "detail": "GITHUB_TOKEN=ghp_… echoed from env into the agent prompt"
+    },
+    {
+      "detection_id": "coble-9d44f1-02",
+      "event_id": "coble-9d44f1-e02",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "session_id": "coble-9d44f1",
+      "rule": "secret_in_prompt",
+      "severity": "high",
+      "ts": "2026-06-19 01:58:05",
+      "summary": "npm publish token in prompt",
+      "detail": "NPM_TOKEN=npm_… read from ~/.npmrc into context"
+    },
+    {
+      "detection_id": "coble-9d44f1-03",
+      "event_id": "coble-9d44f1-e03",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "session_id": "coble-9d44f1",
+      "rule": "pii_in_output",
+      "severity": "medium",
+      "ts": "2026-06-19 01:57:12",
+      "summary": "customer email surfaced in model output",
+      "detail": "output contained 1 email address matching the customers table"
+    },
+    {
+      "detection_id": "coble-9d44f1-04",
+      "event_id": "coble-9d44f1-e04",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "session_id": "coble-9d44f1",
+      "rule": "pii_in_output",
+      "severity": "medium",
+      "ts": "2026-06-19 01:56:20",
+      "summary": "customer phone surfaced in output",
+      "detail": "output contained an E.164 number matching a customer record"
+    },
+    {
+      "detection_id": "coble-9d44f1-05",
+      "event_id": "coble-9d44f1-e05",
+      "endpoint_user": "agent",
+      "endpoint_host": "ci-runner-07",
+      "session_id": "coble-9d44f1",
+      "rule": "pii_in_output",
+      "severity": "low",
+      "ts": "2026-06-19 01:55:30",
+      "summary": "partial card-like number in output",
+      "detail": "output contained a 16-digit sequence (failed Luhn — likely not a real PAN)"
+    }
+  ],
+  "triage": {
+    "verdict": "needs_review",
+    "score": 48,
+    "model": "claude-haiku-4-5",
+    "rationale": "A CI secret appeared in the prompt and a customer email surfaced in output. Likely a logging/redaction gap in the pipeline rather than an attack."
+  },
+  "triageHistory": [
+    {
+      "created_at": "2026-06-19 02:00:00",
+      "model": "claude-haiku-4-5",
+      "verdict": "needs_review",
+      "score": 48,
+      "rationale": "A CI secret appeared in the prompt and a customer email surfaced in output. Likely a logging/redaction gap in the pipeline rather than an attack."
+    }
+  ]
+}
