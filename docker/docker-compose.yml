@@ -14,18 +14,5 @@ services:
         soft: 262144
         hard: 262144
 
-  grafana:
-    image: grafana/grafana:11.2.0
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - clickhouse
-
 volumes:
   ch-data:
-  grafana-data:

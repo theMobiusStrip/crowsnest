@@ -13,12 +13,12 @@ via a pluggable `Store`. Detection runner + rules land in M2.
 
 ```bash
 npm install
-npm run ch:up      # ClickHouse + Grafana via Docker (tables auto-created from migrations/)
+npm run ch:up      # ClickHouse via Docker (tables auto-created from migrations/)
 npm run dev        # crowsnest ingest server on :8787
 ```
 
-- Ingest: `POST http://localhost:8787/v1/events` · health: `GET /healthz`
-- ClickHouse HTTP: http://localhost:8123 · Grafana: http://localhost:3000 (admin / admin)
+- Ingest: `POST http://localhost:8787/v1/events` · health: `GET /healthz` · landing: `GET /`
+- ClickHouse HTTP: http://localhost:8123
 
 Send a test event:
 
@@ -43,5 +43,5 @@ crowsnest/
   src/ingest/server.ts  # POST /v1/events (stateless)
   src/store/            # Store interface + ClickHouse impl
   migrations/           # ClickHouse DDL (events, findings)
-  docker/               # docker-compose: ClickHouse + Grafana
+  docker/               # docker-compose: ClickHouse
 ```
