@@ -12,6 +12,7 @@ function memoryStore(opts: { failAppend?: boolean; pingOk?: boolean } = {}): Sto
       if (opts.failAppend) throw new Error("boom");
       rows.push(...events);
     },
+    async appendFindings() {},
     async query() {
       return [];
     },
@@ -81,5 +82,16 @@ describe("GET /healthz", () => {
   it("reports degraded (503) when the store ping fails", async () => {
     const res = await createServer(memoryStore({ pingOk: false })).request("/healthz");
     expect(res.status).toBe(503);
+  });
+});
+
+describe("GET /", () => {
+  it("serves the HTML landing page", async () => {
+    const res = await createServer(memoryStore()).request("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/html/);
+    const body = await res.text();
+    expect(body).toContain("crowsnest");
+    expect(body).toContain("/v1/events");
   });
 });

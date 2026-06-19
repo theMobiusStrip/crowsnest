@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { EventBatchSchema } from "../schema.js";
 import type { Store } from "../store/store.js";
+import { landingPage } from "./landing.js";
+import { registerReadApi } from "../api/findings.js";
+import { spyglassPage } from "../api/spyglass.js";
 
 /**
  * Stateless ingest API. coble's HttpSink POSTs batched events here. Stateless +
@@ -9,6 +12,12 @@ import type { Store } from "../store/store.js";
  */
 export function createServer(store: Store): Hono {
   const app = new Hono();
+
+  // Any uncaught handler error (e.g. a ClickHouse failure in the read API) returns
+  // JSON, not Hono's default text/plain, so clients can always parse the response.
+  app.onError((err, c) => c.json({ error: "internal error", detail: String(err) }, 500));
+
+  app.get("/", (c) => c.html(landingPage));
 
   app.get("/healthz", async (c) => {
     const ok = await store.ping().catch(() => false);
@@ -38,6 +47,9 @@ export function createServer(store: Store): Hono {
 
     return c.json({ accepted: parsed.data.events.length }, 202);
   });
+
+  app.get("/spyglass", (c) => c.html(spyglassPage));
+  registerReadApi(app, store); // GET /v1/findings, GET /v1/stats
 
   return app;
 }

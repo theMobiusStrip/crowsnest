@@ -37,3 +37,21 @@ export const EventBatchSchema = z.object({
 });
 
 export type EventBatch = z.infer<typeof EventBatchSchema>;
+
+export const Severity = z.enum(["low", "medium", "high", "critical"]);
+
+/** A detection finding — produced by the detection runner from matched events. */
+export const FindingSchema = z.object({
+  finding_id: z.string(), // deterministic `${rule}:${event_id}` → dedup key
+  rule: z.string(),
+  severity: Severity,
+  ts: z.string(),
+  event_id: z.string().optional(),
+  endpoint_user: z.string().optional(),
+  endpoint_host: z.string().optional(),
+  session_id: z.string().optional(),
+  summary: z.string(),
+  detail: z.string().optional(),
+});
+
+export type Finding = z.infer<typeof FindingSchema>;
