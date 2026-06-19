@@ -30,7 +30,7 @@ Send a test event:
 ```bash
 curl -sS localhost:8787/v1/events -H 'content-type: application/json' -d '{
   "events": [{ "schema_version": 1, "event_id": "demo-1", "ts": "2026-06-18T22:00:00.000Z",
-    "endpoint": { "user": "evan", "host": "mac" }, "session_id": "s1",
+    "endpoint": { "user": "alice", "host": "laptop" }, "session_id": "s1",
     "coble_version": "0.4.1", "mode": "default", "sandbox_on": false,
     "tool": "bash", "tier": "safe", "decision": "auto" }]
 }'   # → {"accepted":1}
@@ -46,8 +46,20 @@ TRIAGE_ENABLED=1 ANTHROPIC_API_KEY=sk-... npm run triage   # ANTHROPIC_BASE_URL/
 
 Stateless HTTP ingest → pluggable `Store` (ClickHouse) → scheduled detection runner emitting
 `detections` → read API → spyglass. Network-shaped and stateless from day one, so it scales from
-this single local service to multi-endpoint without a rewrite. Detections are deterministic SQL
-rules; LLM triage only **augments** them (advisory verdict/score), never overrides.
+this single local service to multi-endpoint without a rewrite.
+
+**Key design highlights**
+- **Untrusted by default** — every ingested event field is treated as hostile data and HTML/SQL-escaped
+  before it reaches the dashboard or the triage LLM (spotlighted prompt). One real boundary; see
+  [`SECURITY.md`](SECURITY.md).
+- **Deterministic backbone, advisory AI** — versioned SQL rules decide what's a detection; LLM triage
+  only adds a verdict/score/rationale (**augment-never-override**), and a human *manual* verdict wins.
+- **Scales without a rewrite** — network ingest + stateless server + a `Store` seam (single-node
+  ClickHouse → cluster) + `event_id` dedup mean multi-endpoint = more clients + replicas.
+- **Endpoint- and incident-centric** — events roll up by host (fleet view, cross-host correlation) and
+  by coble run (incidents), so operators triage *episodes*, not rows.
+- **No build-step UI** — spyglass + admin are self-contained served HTML; the whole service is a handful
+  of TS files over ClickHouse.
 
 ```text
 crowsnest/

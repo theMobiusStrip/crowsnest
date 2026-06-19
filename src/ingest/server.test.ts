@@ -14,6 +14,7 @@ function memoryStore(opts: { failAppend?: boolean; pingOk?: boolean } = {}): Sto
     },
     async appendDetections() {},
     async appendTriage() {},
+    async setConfig() {},
     async query() {
       return [];
     },
@@ -28,7 +29,7 @@ const validEvent = (over: Partial<Event> = {}): Event => ({
   schema_version: 1,
   event_id: "e1",
   ts: "2026-06-18T22:00:00.000Z",
-  endpoint: { user: "evan", host: "mac" },
+  endpoint: { user: "alice", host: "laptop" },
   session_id: "s1",
   coble_version: "0.4.1",
   mode: "default",

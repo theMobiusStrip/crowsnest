@@ -15,6 +15,7 @@ function mockStore(rows: Record<string, unknown>[]): Store & { detections: Detec
       detections.push(...d);
     },
     async appendTriage() {},
+    async setConfig() {},
     async query() {
       return rows as never;
     },
@@ -28,8 +29,8 @@ function mockStore(rows: Record<string, unknown>[]): Store & { detections: Detec
 const match = {
   event_id: "e1",
   ts: "2026-06-18T22:00:00.000Z",
-  endpoint_user: "evan",
-  endpoint_host: "mac",
+  endpoint_user: "alice",
+  endpoint_host: "laptop",
   session_id: "s1",
   summary: "bash · dangerous · denied",
   detail: "rule:deny Bash(curl:*)",
@@ -48,7 +49,7 @@ describe("runDetections", () => {
       detection_id: "denied-dangerous:e1", // deterministic → dedup key
       severity: "high",
       event_id: "e1",
-      endpoint_user: "evan",
+      endpoint_user: "alice",
     });
     expect(denied?.summary).toContain("Denied dangerous command");
   });

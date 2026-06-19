@@ -69,6 +69,11 @@ export function createClickHouseStore(cfg: ClickHouseConfig): Store {
       await client.insert({ table: "triage", values, format: "JSONEachRow" });
     },
 
+    async setConfig(entries) {
+      if (entries.length === 0) return;
+      await client.insert({ table: "config", values: entries, format: "JSONEachRow" });
+    },
+
     async query<T = Record<string, unknown>>(sql: string, params?: Record<string, unknown>) {
       const rs = await client.query({ query: sql, query_params: params, format: "JSONEachRow" });
       return (await rs.json()) as T[];

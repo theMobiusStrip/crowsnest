@@ -45,7 +45,7 @@ export const incidentPage = `<!doctype html>
 <body>
 <main>
   <h1>🔭 incident</h1>
-  <p class="sub"><a href="/spyglass">← all incidents</a> · <span id="scope" class="muted">loading…</span></p>
+  <p class="sub"><a href="/spyglass">← all incidents</a> · <a href="/spyglass/admin">admin</a> · <span id="scope" class="muted">loading…</span></p>
   <p class="desc">An incident is one <b>coble run</b> (session) on one host — all its detections grouped together,
     with the deterministic rule score and an advisory triage verdict. The graph shows which rules fired; below you
     can set a manual triage or read each detection's evidence.</p>
@@ -72,6 +72,12 @@ export const incidentPage = `<!doctype html>
     <span id="m-status" class="muted"></span>
   </form>
 
+  <h2>Triage history</h2>
+  <table>
+    <thead><tr><th>time</th><th>source</th><th>verdict</th><th>rationale</th></tr></thead>
+    <tbody id="history"></tbody>
+  </table>
+
   <h2>Detections</h2>
   <table>
     <thead><tr><th>time</th><th>severity</th><th>rule</th><th>summary</th></tr></thead>
@@ -79,8 +85,8 @@ export const incidentPage = `<!doctype html>
   </table>
 </main>
 <script>
-  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); };
   var enc = encodeURIComponent;
   var q = new URLSearchParams(location.search);
   var session = q.get('session') || '', host = q.get('host') || '';
@@ -129,12 +135,14 @@ export const incidentPage = `<!doctype html>
     set('graph', s.join(''));
   }
 
-  function render(d) {
+  function render(d, meta) {
     var inc = d.incident, t = d.triage, dets = d.detections || [];
+    var tEnabled = meta && meta.triage && meta.triage.enabled;
     document.getElementById('scope').textContent = host + ' · session ' + session;
     if (!inc) {
       set('meta', ''); set('cards', '<div class="muted">incident not found</div>');
       set('graph', ''); set('triage', '<span class="muted">—</span>');
+      set('history', '<tr><td colspan="4" class="muted">—</td></tr>');
       set('detections', '<tr><td colspan="4" class="muted">no detections</td></tr>');
       return;
     }
@@ -155,7 +163,9 @@ export const incidentPage = `<!doctype html>
       ? '<span class="vd ' + esc(t.verdict) + '">' + esc(String(t.verdict).replace(/_/g, ' ')) + '</span> ' +
         esc(t.score) + (t.rationale ? ' <span class="muted">— ' + esc(t.rationale) + '</span>' : '') +
         (t.model ? ' <span class="tag">' + esc(t.model) + '</span>' : '')
-      : '<span class="muted">not triaged yet</span>');
+      : (tEnabled
+          ? '<span class="muted">not triaged yet — run the triage job</span>'
+          : '<span class="muted">AI triage is <b>off</b> — set a manual verdict below, or enable it in <a href="/spyglass/admin">admin</a></span>'));
     // prefill the manual form from the current verdict
     if (t) {
       document.getElementById('m-verdict').value = t.verdict;
@@ -168,10 +178,20 @@ export const incidentPage = `<!doctype html>
       return '<tr><td class="muted">' + esc(x.ts) + '</td><td>' + sevBadge(x.severity) + '</td><td>' +
         esc(x.rule) + '</td><td>' + esc(x.summary) + evidence + '</td></tr>';
     }).join('') || '<tr><td colspan="4" class="muted">no detections</td></tr>');
+
+    var hist = d.triageHistory || [];
+    set('history', hist.map(function (h) {
+      return '<tr><td class="muted">' + esc(h.created_at) + '</td><td><span class="tag">' + esc(h.model) + '</span></td>' +
+        '<td><span class="vd ' + esc(h.verdict) + '">' + esc(String(h.verdict).replace(/_/g, ' ')) + '</span> ' + esc(h.score) + '</td>' +
+        '<td class="muted">' + esc(h.rationale) + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="muted">no triage yet</td></tr>');
   }
 
   function load() {
-    return fetchJson('/v1/incident?session=' + enc(session) + '&host=' + enc(host)).then(render);
+    return Promise.all([
+      fetchJson('/v1/incident?session=' + enc(session) + '&host=' + enc(host)),
+      fetchJson('/v1/meta').catch(function () { return { triage: {} }; }),
+    ]).then(function (r) { render(r[0], r[1]); });
   }
 
   document.getElementById('mform').addEventListener('submit', function (e) {

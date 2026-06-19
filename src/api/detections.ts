@@ -1,5 +1,6 @@
 import type { Context, Hono } from "hono";
 import { z } from "zod";
+import { effectiveTriageConfig } from "../config.js";
 import { TriageVerdict } from "../schema.js";
 import type { Store } from "../store/store.js";
 
@@ -10,6 +11,13 @@ const ManualTriageSchema = z.object({
   verdict: TriageVerdict,
   score: z.number().int().min(0).max(100),
   rationale: z.string().max(2000),
+});
+
+/** Body for the admin config console — runtime triage overrides. Only enable/disable + model;
+ *  base URL and API key stay env-only (never settable from the DB). */
+const ConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  model: z.string().min(1).max(100).optional(),
 });
 
 /** prod/ci/dev weighting from a host-naming convention (no infra lookup table needed).
@@ -60,6 +68,34 @@ interface FleetRow {
  * so ReplacingMergeTree dedup is applied at read time.
  */
 export function registerReadApi(app: Hono, store: Store): void {
+  // Triage config state for the UI / admin console (shows "AI triage: off", effective model + base
+  // URL). Never exposes the API key — only whether one is present.
+  app.get("/v1/meta", async (c) => {
+    const t = await effectiveTriageConfig(store);
+    return c.json({ triage: { enabled: t.enabled, model: t.model, baseUrl: t.baseUrl, keyPresent: t.apiKey.length > 0 } });
+  });
+
+  // Admin console writes — toggle triage + set model (runtime, persisted). Base URL + key are
+  // env-only by design (a mutable base URL on an unauthenticated console could exfiltrate the key).
+  app.post("/v1/config", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    const parsed = ConfigSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "invalid config", issues: parsed.error.issues }, 400);
+    }
+    const entries: { key: string; value: string }[] = [];
+    if (parsed.data.enabled !== undefined) entries.push({ key: "triage.enabled", value: parsed.data.enabled ? "1" : "0" });
+    if (parsed.data.model !== undefined) entries.push({ key: "triage.model", value: parsed.data.model });
+    if (entries.length) await store.setConfig(entries);
+    const t = await effectiveTriageConfig(store);
+    return c.json({ ok: true, triage: { enabled: t.enabled, model: t.model, baseUrl: t.baseUrl, keyPresent: t.apiKey.length > 0 } });
+  });
+
   // Recent detections, newest first. ?severity= &rule= &host= &limit=
   app.get("/v1/detections", async (c) => {
     // ?? only guards a *missing* param; a present-but-non-numeric value (?limit=abc)
@@ -233,7 +269,7 @@ export function registerReadApi(app: Hono, store: Store): void {
     const session = c.req.query("session") ?? "";
     const host = c.req.query("host") ?? "";
     const params = { session, host };
-    const [incRows, detections, triageRows] = await Promise.all([
+    const [incRows, detections, triageRows, historyRows] = await Promise.all([
       store.query<{
         session_id: string;
         endpoint_user: string;
@@ -264,6 +300,12 @@ export function registerReadApi(app: Hono, store: Store): void {
          ORDER BY model = 'manual' DESC, created_at DESC LIMIT 1`,
         params,
       ),
+      store.query<{ created_at: string; model: string; verdict: string; score: string; rationale: string }>(
+        `SELECT created_at, model, verdict, score, rationale FROM triage
+         WHERE session_id = {session:String} AND endpoint_host = {host:String}
+         ORDER BY created_at DESC LIMIT 50`,
+        params,
+      ),
     ]);
     const r = incRows[0];
     const incident = r
@@ -276,12 +318,19 @@ export function registerReadApi(app: Hono, store: Store): void {
       : null;
     const t = triageRows[0];
     const triage = t ? { verdict: t.verdict, score: Number(t.score), rationale: t.rationale, model: t.model } : null;
-    return c.json({ incident, detections, triage });
+    const triageHistory = historyRows.map((h) => ({
+      created_at: h.created_at,
+      model: h.model,
+      verdict: h.verdict,
+      score: Number(h.score),
+      rationale: h.rationale,
+    }));
+    return c.json({ incident, detections, triage, triageHistory });
   });
 
-  // Manual triage — a human sets/overrides an incident's advisory verdict. Stored in the same
-  // triage table (model "manual"); latest wins (ReplacingMergeTree by created_at). Still ADVISORY:
-  // it never changes detections or rule severities. (No auth — MVP non-goal; behind the trust boundary.)
+  // Manual triage — a human sets/overrides an incident's advisory verdict. Appended to the triage
+  // log (model "manual"); reads prefer manual, so it deterministically wins over LLM rows. Still
+  // ADVISORY: never changes detections or rule severities. (No auth — MVP non-goal.)
   app.post("/v1/incident/triage", async (c) => {
     let body: unknown;
     try {

@@ -16,6 +16,7 @@ function mockStore(incidents: unknown[], existingTriage: unknown[] = [], detecti
     async appendTriage(t) {
       written.push(...t);
     },
+    async setConfig() {},
     async query(sql: string) {
       if (sql.includes("FROM incidents")) return incidents as never;
       if (sql.includes("FROM triage")) return existingTriage as never;
