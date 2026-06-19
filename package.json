@@ -16,6 +16,8 @@
     "triage": "tsx src/triage.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "up": "docker compose -f docker/docker-compose.yml up -d --build",
+    "down": "docker compose -f docker/docker-compose.yml down",
     "ch:up": "docker compose -f docker/docker-compose.yml up -d",
     "ch:down": "docker compose -f docker/docker-compose.yml down"
   },

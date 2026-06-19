@@ -9,3 +9,4 @@ coverage/
 .claude/
 PLAN.md
 CLAUDE.md
+.crowsnest-secrets.json

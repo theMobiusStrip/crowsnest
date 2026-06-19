@@ -2,6 +2,7 @@ import type { Context, Hono } from "hono";
 import { z } from "zod";
 import { effectiveTriageConfig } from "../config.js";
 import { TriageVerdict } from "../schema.js";
+import { writeSecrets } from "../secrets.js";
 import type { Store } from "../store/store.js";
 
 /** Body for manual (human) triage of an incident. */
@@ -13,11 +14,13 @@ const ManualTriageSchema = z.object({
   rationale: z.string().max(2000),
 });
 
-/** Body for the admin config console — runtime triage overrides. Only enable/disable + model;
- *  base URL and API key stay env-only (never settable from the DB). */
+/** Body for the admin config console. enable/disable + model persist to the `config` table;
+ *  base URL + API key persist to the local 0600 secrets file (never the DB). */
 const ConfigSchema = z.object({
   enabled: z.boolean().optional(),
   model: z.string().min(1).max(100).optional(),
+  baseUrl: z.string().url().max(300).optional(),
+  apiKey: z.string().max(300).optional(),
 });
 
 /** prod/ci/dev weighting from a host-naming convention (no infra lookup table needed).
@@ -92,8 +95,22 @@ export function registerReadApi(app: Hono, store: Store): void {
     if (parsed.data.enabled !== undefined) entries.push({ key: "triage.enabled", value: parsed.data.enabled ? "1" : "0" });
     if (parsed.data.model !== undefined) entries.push({ key: "triage.model", value: parsed.data.model });
     if (entries.length) await store.setConfig(entries);
+    // base URL + API key → local 0600 secrets file (never the DB). apiKey only when non-empty, so
+    // saving the form without retyping the key doesn't wipe it.
+    const secrets: { baseUrl?: string; apiKey?: string } = {};
+    if (parsed.data.baseUrl !== undefined) secrets.baseUrl = parsed.data.baseUrl;
+    if (parsed.data.apiKey) secrets.apiKey = parsed.data.apiKey;
+    if (Object.keys(secrets).length) writeSecrets(secrets);
     const t = await effectiveTriageConfig(store);
     return c.json({ ok: true, triage: { enabled: t.enabled, model: t.model, baseUrl: t.baseUrl, keyPresent: t.apiKey.length > 0 } });
+  });
+
+  // Restart the process (admin "restart" button). Relies on a supervisor (docker `restart:
+  // unless-stopped` / pm2) to bring it back — without one, the process just exits. Unauthenticated,
+  // like the rest of the admin surface; local-only.
+  app.post("/v1/restart", (c) => {
+    setTimeout(() => process.exit(0), 250); // let the response flush first
+    return c.json({ ok: true, restarting: true });
   });
 
   // Recent detections, newest first. ?severity= &rule= &host= &limit=

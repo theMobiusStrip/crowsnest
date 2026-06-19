@@ -10,7 +10,7 @@ architected to scale to multi-endpoint without a rewrite.
 
 Shipped (local-first): ingest → ClickHouse · detection runner + SQL rules → `detections` ·
 **spyglass** dashboard (fleet view · cross-host correlation · incident detail) · advisory
-**LLM triage** (Anthropic, default off). Next: durable daemon, migration runner.
+**LLM triage** (Anthropic, default off) · admin console. Next: migration runner.
 
 ## Quickstart (dev)
 
@@ -19,6 +19,13 @@ npm install
 npm run ch:up      # ClickHouse via Docker (migrations auto-applied on first init)
 npm run dev        # ingest + read API + spyglass on :8787
 npm run detect     # scan events → write detections
+```
+
+**Run as a durable daemon** (server + ClickHouse in Docker, `restart: unless-stopped` — the admin
+`restart` button and reboots recover automatically):
+
+```bash
+npm run up         # build + start the whole stack   ·   npm run down to stop
 ```
 
 - **Dashboard:** http://localhost:8787/spyglass · ingest: `POST /v1/events` · health: `GET /healthz`
