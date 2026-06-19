@@ -33,7 +33,7 @@ export const landingPage = `<!doctype html>
 <body>
 <main>
   <h1>🪺 crowsnest</h1>
-  <p class="sub">Ingest API — tool-decision events from the <a href="https://github.com/theMobiusStrip/coble">coble</a> fleet, watched centrally.</p>
+  <p class="sub">Ingest API — tool-decision events from the <a href="https://github.com/theMobiusStrip/coble">coble</a> fleet, watched centrally. <a href="/spyglass">spyglass dashboard →</a></p>
   <span class="status"><span id="dot" class="dot"></span><span id="st">checking…</span></span>
 
   <h2>Endpoints</h2>
@@ -41,6 +41,7 @@ export const landingPage = `<!doctype html>
     <tr><td class="m"><span class="method post">POST</span><code>/v1/events</code></td><td>Ingest a batch of events. Body <code>{ "events": [Event, …] }</code> → <code>202 {"accepted":N}</code>.</td></tr>
     <tr><td class="m"><span class="method get">GET</span><code>/healthz</code></td><td>Liveness + store status.</td></tr>
     <tr><td class="m"><span class="method get">GET</span><code>/</code></td><td>This page.</td></tr>
+    <tr><td class="m"><span class="method get">GET</span><code>/spyglass</code></td><td>Detection dashboard.</td></tr>
   </table>
 
   <h2>Event shape</h2>
