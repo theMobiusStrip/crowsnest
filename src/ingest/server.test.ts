@@ -14,6 +14,7 @@ function memoryStore(opts: { failAppend?: boolean; pingOk?: boolean } = {}): Sto
     },
     async appendDetections() {},
     async appendTriage() {},
+    async setConfig() {},
     async query() {
       return [];
     },

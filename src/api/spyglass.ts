@@ -48,7 +48,8 @@ export const spyglassPage = `<!doctype html>
 <body>
 <main>
   <h1>🔭 spyglass</h1>
-  <p class="sub">crowsnest fleet view · <a href="/">ingest API</a> · <span id="scope"></span> ·
+  <p class="sub">crowsnest fleet view · <a href="/">ingest API</a> · <a href="/spyglass/admin">admin</a> ·
+    <span id="triagestate" class="muted"></span> · <span id="scope"></span> ·
     <span id="updated" class="muted">loading…</span></p>
   <p class="desc">Security console for the <a href="https://github.com/theMobiusStrip/coble">coble</a> fleet —
     deterministic detections + advisory LLM triage across every agent run, by endpoint, rule, and incident.</p>
@@ -82,8 +83,8 @@ export const spyglassPage = `<!doctype html>
   </table>
 </main>
 <script>
-  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); };
   var enc = encodeURIComponent;
   var sevOrder = ['critical','high','medium','low'];
   var host = new URLSearchParams(location.search).get('host') || '';
@@ -100,8 +101,12 @@ export const spyglassPage = `<!doctype html>
     });
   }
 
-  function render(stats, det, fleet, corr, inc) {
+  function render(stats, det, fleet, corr, inc, meta) {
     stats = stats || {}; det = det || {}; fleet = fleet || {}; corr = corr || {}; inc = inc || {};
+    var tri = (meta && meta.triage) || {};
+    set('triagestate', tri.enabled
+      ? 'AI triage: <b>on</b> <span class="muted">(' + esc(tri.model || '') + ')</span>'
+      : 'AI triage: <b>off</b>');
     set('scope', host
       ? 'host: <span class="filter">' + esc(host) + '</span> <a href="?">✕ all</a>'
       : '<span class="muted">all hosts</span>');
@@ -163,9 +168,10 @@ export const spyglassPage = `<!doctype html>
       fetchJson('/v1/fleet'),
       fetchJson('/v1/correlations'),
       fetchJson('/v1/incidents' + hostP('?')),
+      fetchJson('/v1/meta'),
     ]).then(function (rs) {
       var val = function (i) { return rs[i].status === 'fulfilled' ? rs[i].value : null; };
-      render(val(0), val(1), val(2), val(3), val(4));
+      render(val(0), val(1), val(2), val(3), val(4), val(5));
       var failed = rs.filter(function (r) { return r.status === 'rejected'; }).length;
       var stamp = 'updated ' + new Date().toLocaleTimeString();
       document.getElementById('updated').textContent = failed ? stamp + ' · ' + failed + ' panel(s) failed' : stamp;

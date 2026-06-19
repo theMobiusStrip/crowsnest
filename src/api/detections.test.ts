@@ -9,13 +9,16 @@ type QueryCall = { sql: string; params?: Record<string, unknown> };
  *  captures the bound params; `opts.throwOnQuery` simulates a store failure. */
 function mockStore(
   rows: Record<string, unknown>[] = [],
-  opts: { throwOnQuery?: boolean; calls?: QueryCall[]; triage?: Record<string, unknown>[] } = {},
+  opts: { throwOnQuery?: boolean; calls?: QueryCall[]; triage?: Record<string, unknown>[]; config?: { key: string; value: string }[] } = {},
 ): Store {
   return {
     async append() {},
     async appendDetections() {},
     async appendTriage(t) {
       opts.triage?.push(...(t as unknown as Record<string, unknown>[]));
+    },
+    async setConfig(e) {
+      opts.config?.push(...e);
     },
     async query(sql: string, params?: Record<string, unknown>) {
       opts.calls?.push({ sql, params });
@@ -197,13 +200,61 @@ describe("fleet-view endpoints", () => {
       score: "60",
       rationale: "looks odd",
       model: "claude-opus-4-7",
+      created_at: "2026-06-19 00:00:00",
     };
     const res = await createServer(mockStore([row])).request("/v1/incident?session=s1&host=prod-1");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { incident: Record<string, unknown>; detections: unknown[]; triage: Record<string, unknown> };
+    const body = (await res.json()) as {
+      incident: Record<string, unknown>;
+      detections: unknown[];
+      triage: Record<string, unknown>;
+      triageHistory: Array<Record<string, unknown>>;
+    };
     expect(body.incident).toMatchObject({ session_id: "s1", worst_severity: "high", sensitivity: 3 });
     expect(body.detections).toHaveLength(1);
     expect(body.triage).toMatchObject({ verdict: "needs_review", score: 60, model: "claude-opus-4-7" });
+    expect(body.triageHistory[0]).toMatchObject({ model: "claude-opus-4-7", verdict: "needs_review", score: 60 });
+  });
+});
+
+describe("config + meta", () => {
+  it("GET /v1/meta reflects overrides and never exposes the key", async () => {
+    const store = mockStore([
+      { key: "triage.enabled", value: "1" },
+      { key: "triage.model", value: "test-model" },
+    ]);
+    const res = await createServer(store).request("/v1/meta");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { triage: Record<string, unknown> };
+    expect(body.triage).toMatchObject({ enabled: true, model: "test-model" });
+    expect(body.triage).toHaveProperty("keyPresent");
+    expect(body.triage).not.toHaveProperty("apiKey");
+  });
+
+  it("POST /v1/config persists enable + model (not base URL or key)", async () => {
+    const config: { key: string; value: string }[] = [];
+    const res = await createServer(mockStore([], { config })).request("/v1/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true, model: "claude-opus-4-7", baseUrl: "http://evil", apiKey: "x" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    expect(config).toEqual([
+      { key: "triage.enabled", value: "1" },
+      { key: "triage.model", value: "claude-opus-4-7" },
+    ]);
+  });
+
+  it("POST /v1/config rejects invalid input", async () => {
+    const config: { key: string; value: string }[] = [];
+    const res = await createServer(mockStore([], { config })).request("/v1/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: "yes", model: 123 }),
+    });
+    expect(res.status).toBe(400);
+    expect(config).toHaveLength(0);
   });
 });
 

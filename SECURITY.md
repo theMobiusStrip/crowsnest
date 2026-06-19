@@ -47,9 +47,13 @@ A triage failure, timeout, or injection can therefore never suppress or downgrad
 
 ## Honest limitations (do not overclaim)
 
-- **No authentication or authorization.** Ingest, the read API, and manual triage are all
-  open to anyone who can reach the port. This is a documented MVP non-goal ("behind the trust
-  boundary") — do not deploy to an untrusted network without a front door.
+- **No authentication or authorization.** Ingest, the read API, manual triage, and the admin
+  config console (`POST /v1/config`) are all open to anyone who can reach the port. Notably an
+  unauthenticated caller can **enable triage** — flipping the egress gate on — so on an untrusted
+  network this escalates to triggering outbound calls (with the env key, to the env base URL) on
+  the next run. (The key and base URL themselves are env-only and never settable over the wire,
+  which bounds it to the operator's chosen endpoint.) Documented MVP non-goal ("behind the trust
+  boundary"): run on localhost / a trusted network and add a front door before exposure.
 - **XSS safety is client-side and total-coverage.** The dashboard escapes untrusted fields
   with an inlined `esc()` in its `<script>`; there is no CSP header. A *single* untrusted field
   interpolated into HTML without `esc()` is stored XSS. New fields/columns must be escaped at

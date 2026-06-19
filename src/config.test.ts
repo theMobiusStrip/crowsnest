@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadTriageConfig, parseIntervalMs } from "./config.js";
+import { effectiveTriageConfig, loadTriageConfig, parseIntervalMs } from "./config.js";
+import type { Store } from "./store/store.js";
 
 describe("parseIntervalMs", () => {
   it("defaults to 0 (one-shot) when unset", () => {
@@ -42,5 +43,45 @@ describe("loadTriageConfig", () => {
     expect(c.enabled).toBe(true);
     expect(c.provider).toBe("mock");
     expect(c.baseUrl).toBe("http://localhost:8080");
+  });
+});
+
+function storeWith(rows: { key: string; value: string }[]): Store {
+  return {
+    async append() {},
+    async appendDetections() {},
+    async appendTriage() {},
+    async setConfig() {},
+    async query() {
+      return rows as never;
+    },
+    async ping() {
+      return true;
+    },
+    async close() {},
+  };
+}
+
+describe("effectiveTriageConfig", () => {
+  it("applies enabled + model overrides from the config table", async () => {
+    const c = await effectiveTriageConfig(
+      storeWith([
+        { key: "triage.enabled", value: "1" },
+        { key: "triage.model", value: "db-model" },
+      ]),
+    );
+    expect(c.enabled).toBe(true);
+    expect(c.model).toBe("db-model");
+  });
+
+  it("never takes the base URL or API key from the DB (key-exfil guard)", async () => {
+    const c = await effectiveTriageConfig(
+      storeWith([
+        { key: "triage.baseUrl", value: "http://evil.example" },
+        { key: "triage.apiKey", value: "stolen" },
+      ]),
+    );
+    expect(c.baseUrl).not.toBe("http://evil.example");
+    expect(c.apiKey).not.toBe("stolen");
   });
 });

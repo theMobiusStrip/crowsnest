@@ -1,3 +1,5 @@
+import type { Store } from "./store/store.js";
+
 export interface Config {
   port: number;
   clickhouseUrl: string;
@@ -48,5 +50,34 @@ export function loadTriageConfig(env: NodeJS.ProcessEnv = process.env): TriageCo
     model: env.TRIAGE_MODEL ?? "claude-opus-4-7",
     apiKey: env.ANTHROPIC_API_KEY ?? "",
     baseUrl: (env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/+$/, ""),
+  };
+}
+
+/**
+ * Effective triage config = env defaults (loadTriageConfig) overlaid with runtime overrides from
+ * the `config` table (set via the admin console). The API key and base URL stay **env-only** —
+ * never overridable from the DB (a mutable base URL on an unauthenticated console could exfiltrate
+ * the key).
+ */
+export async function effectiveTriageConfig(store: Store): Promise<TriageConfig> {
+  const base = loadTriageConfig();
+  const overrides: Record<string, string> = {};
+  try {
+    const rows = await store.query<{ key: string; value: string }>(
+      `SELECT key, value FROM config FINAL WHERE key LIKE 'triage.%'`,
+    );
+    for (const r of rows) overrides[r.key] = r.value;
+  } catch (e) {
+    // An absent config table (code deployed before migration 006) → fall back to env defaults.
+    // Any OTHER error (DB outage) must NOT silently fail-open the toggle — re-throw so the caller
+    // fails safe (the runner aborts rather than running triage the admin may have turned off).
+    if (/unknown_table|does\s?n'?t exist|not found/i.test(String(e))) return base;
+    throw e;
+  }
+  return {
+    ...base,
+    enabled: "triage.enabled" in overrides ? /^(1|true|yes|on)$/i.test(overrides["triage.enabled"]) : base.enabled,
+    model: overrides["triage.model"] || base.model,
+    // baseUrl + apiKey: env only, never from the DB
   };
 }
