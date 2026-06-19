@@ -13,4 +13,10 @@ describe("detection rules", () => {
     expect(read?.sql).toContain("decision IN ('denied', 'error')");
     expect(read?.sql).toContain("tool = 'read_file'");
   });
+
+  it("remote-egress flags push/PR that executed", () => {
+    const egress = rules.find((r) => r.id === "remote-egress");
+    expect(egress?.sql).toContain("tool IN ('git_push', 'create_pull_request')");
+    expect(egress?.sql).toContain("decision IN ('approved', 'auto')");
+  });
 });

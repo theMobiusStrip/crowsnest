@@ -1,5 +1,5 @@
-/** Self-contained spyglass dashboard, served at GET /spyglass. Reads /v1/stats +
- *  /v1/detections and renders detection results. No build step. */
+/** Self-contained spyglass dashboard, served at GET /spyglass. Reads /v1/stats, /v1/detections,
+ *  /v1/fleet, /v1/correlations, /v1/incidents and renders the fleet view. No build step. */
 export const spyglassPage = `<!doctype html>
 <html lang="en">
 <head>
@@ -11,13 +11,15 @@ export const spyglassPage = `<!doctype html>
   * { box-sizing: border-box; }
   body { margin:0; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     background:#0b0e14; color:#c9d1d9; padding:2rem 1.25rem; }
-  main { max-width:980px; margin:0 auto; }
+  main { max-width:1040px; margin:0 auto; }
   h1 { font-size:1.6rem; margin:0; color:#e6edf3; }
-  .sub { color:#7d8590; margin:.2rem 0 1.4rem; }
-  .row { display:flex; flex-wrap:wrap; gap:.8rem; margin-bottom:1.4rem; }
-  .card { flex:1; min-width:120px; border:1px solid #21262d; border-radius:10px; padding:.8rem 1rem; background:#0f141c; }
+  .sub { color:#7d8590; margin:.2rem 0 1.2rem; }
+  .row { display:flex; flex-wrap:wrap; gap:.8rem; margin-bottom:1.2rem; }
+  .card { flex:1; min-width:110px; border:1px solid #21262d; border-radius:10px; padding:.7rem 1rem; background:#0f141c; }
   .card .n { font-size:1.7rem; font-weight:700; color:#e6edf3; }
   .card .k { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#7d8590; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+  @media (max-width:720px){ .cols { grid-template-columns:1fr; } }
   h2 { font-size:.74rem; text-transform:uppercase; letter-spacing:.08em; color:#7d8590; margin:1.6rem 0 .5rem; }
   table { width:100%; border-collapse:collapse; }
   th { text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#7d8590; padding:.4rem .5rem; border-bottom:1px solid #30363d; }
@@ -25,19 +27,41 @@ export const spyglassPage = `<!doctype html>
   .sev { display:inline-block; min-width:5.2em; text-align:center; padding:0 .45em; border-radius:4px; font-size:.72rem; }
   .critical { background:#f8514933; color:#ff7b72; } .high { background:#db6d2833; color:#f0883e; }
   .medium { background:#d2992233; color:#e3b341; } .low { background:#3fb95033; color:#7ee787; }
-  .muted { color:#7d8590; } a { color:#58a6ff; }
+  .muted { color:#7d8590; } a { color:#58a6ff; text-decoration:none; } a:hover { text-decoration:underline; }
   .bar { height:.5rem; background:#1f6feb55; border-radius:3px; }
+  .tag { font-size:.68rem; padding:0 .4em; border-radius:4px; background:#30363d; color:#adbac7; }
+  .tag.stale { background:#f8514933; color:#ff7b72; }
+  .evidence { color:#6e7681; font-size:.85em; white-space:pre-wrap; word-break:break-word; margin-top:.15rem; }
+  .filter { background:#1f6feb22; border:1px solid #1f6feb55; border-radius:6px; padding:.05rem .45rem; }
 </style>
 </head>
 <body>
 <main>
   <h1>🔭 spyglass</h1>
-  <p class="sub">crowsnest detection results · <a href="/">ingest API</a> · <span id="updated" class="muted">loading…</span></p>
+  <p class="sub">crowsnest fleet view · <a href="/">ingest API</a> · <span id="scope"></span> ·
+    <span id="updated" class="muted">loading…</span></p>
 
   <div class="row" id="cards"></div>
 
-  <h2>By rule</h2>
-  <table><tbody id="byrule"></tbody></table>
+  <div class="cols">
+    <div>
+      <h2>By endpoint</h2>
+      <table><thead><tr><th>host</th><th>det</th><th>crit</th><th>last seen</th></tr></thead><tbody id="fleet"></tbody></table>
+    </div>
+    <div>
+      <h2>By rule</h2>
+      <table><tbody id="byrule"></tbody></table>
+    </div>
+  </div>
+
+  <h2>Fleet-wide — same rule across &gt;1 host (24h)</h2>
+  <table><tbody id="correlations"></tbody></table>
+
+  <h2>Incidents — ranked by risk</h2>
+  <table>
+    <thead><tr><th>severity</th><th>host</th><th>session</th><th>rules</th><th>det</th><th>score</th></tr></thead>
+    <tbody id="incidents"></tbody>
+  </table>
 
   <h2>Recent detections</h2>
   <table>
@@ -46,43 +70,96 @@ export const spyglassPage = `<!doctype html>
   </table>
 </main>
 <script>
-  const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
-  const sevOrder = ['critical','high','medium','low'];
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); };
+  var enc = encodeURIComponent;
+  var sevOrder = ['critical','high','medium','low'];
+  var host = new URLSearchParams(location.search).get('host') || '';
+  var hostP = function (sep) { return host ? sep + 'host=' + enc(host) : ''; };
+  var set = function (id, html) { document.getElementById(id).innerHTML = html; };
+  var sevBadge = function (s) { return '<span class="sev ' + esc(s) + '">' + esc(s) + '</span>'; };
+  var hostLink = function (h) { return '<a href="?host=' + enc(h) + '">' + esc(h) + '</a>'; };
+  var emptyRow = function (cols, text) { return '<tr><td colspan="' + cols + '" class="muted">' + text + '</td></tr>'; };
 
-  async function fetchJson(url) {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
-    return r.json();
+  function fetchJson(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+      return r.json();
+    });
   }
-  async function load() {
-    const [stats, found] = await Promise.all([
-      fetchJson('/v1/stats'),
-      fetchJson('/v1/detections?limit=100'),
-    ]);
 
-    const bySev = Object.fromEntries((stats.bySeverity || []).map((r) => [r.severity, Number(r.n)]));
-    const cards = [['total', stats.totals?.detections ?? 0], ...sevOrder.map((s) => [s, bySev[s] || 0])];
-    document.getElementById('cards').innerHTML = cards.map(([k, n]) =>
-      \`<div class="card"><div class="n">\${n}</div><div class="k">\${k}</div></div>\`).join('');
+  function render(stats, det, fleet, corr, inc) {
+    stats = stats || {}; det = det || {}; fleet = fleet || {}; corr = corr || {}; inc = inc || {};
+    set('scope', host
+      ? 'host: <span class="filter">' + esc(host) + '</span> <a href="?">✕ all</a>'
+      : '<span class="muted">all hosts</span>');
 
-    const rules = stats.byRule || [];
-    const max = Math.max(1, ...rules.map((r) => Number(r.n)));
-    document.getElementById('byrule').innerHTML = rules.map((r) =>
-      \`<tr><td style="white-space:nowrap">\${esc(r.rule)}</td><td style="width:60%"><div class="bar" style="width:\${(Number(r.n)/max*100)}%"></div></td><td class="muted">\${r.n}</td></tr>\`).join('')
-      || '<tr><td class="muted">no detections yet</td></tr>';
+    var bySev = {};
+    (stats.bySeverity || []).forEach(function (r) { bySev[r.severity] = Number(r.n); });
+    var cards = [['total', stats.totals ? stats.totals.detections : 0]].concat(
+      sevOrder.map(function (s) { return [s, bySev[s] || 0]; }));
+    set('cards', cards.map(function (kv) {
+      return '<div class="card"><div class="n">' + kv[1] + '</div><div class="k">' + kv[0] + '</div></div>';
+    }).join(''));
 
-    const rows = found.detections || [];
-    document.getElementById('detections').innerHTML = rows.map((f) =>
-      \`<tr><td class="muted">\${esc(f.ts)}</td><td><span class="sev \${esc(f.severity)}">\${esc(f.severity)}</span></td>\` +
-      \`<td>\${esc(f.rule)}</td><td class="muted">\${esc(f.endpoint_user)}@\${esc(f.endpoint_host)}</td><td>\${esc(f.summary)}</td></tr>\`).join('')
-      || '<tr><td colspan="5" class="muted">no detections yet — run the detector</td></tr>';
+    set('fleet', (fleet.fleet || []).map(function (f) {
+      var tags = (f.stale ? ' <span class="tag stale">stale</span>' : '') +
+        (f.sensitivity > 1 ? ' <span class="tag">' + (f.sensitivity === 3 ? 'prod' : 'ci/stg') + '</span>' : '');
+      return '<tr><td>' + hostLink(f.endpoint_host) + tags + '</td><td>' + f.detections +
+        '</td><td>' + (f.crit || 0) + '</td><td class="muted">' + esc(f.last_seen || '—') + '</td></tr>';
+    }).join('') || emptyRow(4, 'no endpoints yet'));
 
-    document.getElementById('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    var rules = stats.byRule || [];
+    var max = Math.max.apply(null, [1].concat(rules.map(function (r) { return Number(r.n); })));
+    set('byrule', rules.map(function (r) {
+      return '<tr><td style="white-space:nowrap">' + esc(r.rule) +
+        '</td><td style="width:55%"><div class="bar" style="width:' + (Number(r.n) / max * 100) +
+        '%"></div></td><td class="muted">' + r.n + '</td></tr>';
+    }).join('') || emptyRow(3, 'no detections yet'));
+
+    set('correlations', (corr.correlations || []).map(function (co) {
+      return '<tr><td>' + esc(co.rule) + '</td><td class="muted">' + co.hosts +
+        ' hosts</td><td class="muted">' + (co.host_list || []).map(esc).join(', ') + '</td></tr>';
+    }).join('') || emptyRow(3, 'no cross-host correlations'));
+
+    set('incidents', (inc.incidents || []).map(function (i) {
+      return '<tr><td>' + sevBadge(i.worst_severity) + '</td><td>' + hostLink(i.endpoint_host) +
+        '</td><td class="muted">' + esc(i.session_id) + '</td><td>' + (i.rules || []).map(esc).join(', ') +
+        '</td><td>' + i.detections + '</td><td>' + i.score + '</td></tr>';
+    }).join('') || emptyRow(6, 'no incidents yet'));
+
+    set('detections', (det.detections || []).map(function (d) {
+      var evidence = d.detail ? '<div class="evidence">' + esc(d.detail) + '</div>' : '';
+      return '<tr><td class="muted">' + esc(d.ts) + '</td><td>' + sevBadge(d.severity) + '</td><td>' +
+        esc(d.rule) + '</td><td class="muted">' + esc(d.endpoint_user) + '@' + esc(d.endpoint_host) +
+        '</td><td>' + esc(d.summary) + evidence + '</td></tr>';
+    }).join('') || emptyRow(5, 'no detections yet — run the detector'));
   }
-  // Both the initial load and each refresh surface failures on the badge, so a
-  // ClickHouse blip after first paint shows "stale" instead of silently freezing.
+
+  // allSettled so one failing endpoint (e.g. a missing view, or a transient blip) degrades to
+  // that panel being empty + a count on the badge — not a fully blank dashboard.
+  function load() {
+    return Promise.allSettled([
+      fetchJson('/v1/stats' + hostP('?')),
+      fetchJson('/v1/detections?limit=100' + hostP('&')),
+      fetchJson('/v1/fleet'),
+      fetchJson('/v1/correlations'),
+      fetchJson('/v1/incidents' + hostP('?')),
+    ]).then(function (rs) {
+      var val = function (i) { return rs[i].status === 'fulfilled' ? rs[i].value : null; };
+      render(val(0), val(1), val(2), val(3), val(4));
+      var failed = rs.filter(function (r) { return r.status === 'rejected'; }).length;
+      var stamp = 'updated ' + new Date().toLocaleTimeString();
+      document.getElementById('updated').textContent = failed ? stamp + ' · ' + failed + ' panel(s) failed' : stamp;
+    });
+  }
+
+  // Both the initial load and each refresh surface failures on the badge, so a ClickHouse blip
+  // after first paint shows "stale" instead of silently freezing.
   function refresh() {
-    load().catch((e) => { document.getElementById('updated').textContent = 'stale — error: ' + e.message; });
+    load().catch(function (e) {
+      document.getElementById('updated').textContent = 'stale — error: ' + e.message;
+    });
   }
   refresh();
   setInterval(refresh, 15000);
