@@ -50,13 +50,13 @@
 <body>
 <main>
   <h1>🔭 spyglass</h1>
-  <p class="sub">crowsnest fleet view · <a href="https://github.com/theMobiusStrip/crowsnest">ingest API</a> · <a href="https://github.com/theMobiusStrip/crowsnest">admin</a> ·
+  <p class="sub">crowsnest fleet view · <a href="https://github.com/theMobiusStrip/crowsnest">ingest API</a> · <a href="admin.html">admin</a> ·
     <span id="triagestate" class="muted"></span> · <span id="scope"></span> ·
     <span id="updated" class="muted">loading…</span></p>
   <p class="desc">Security console for the <a href="https://github.com/theMobiusStrip/coble">coble</a> fleet —
     deterministic detections + advisory LLM triage across every agent run, by endpoint, rule, and incident.</p>
 
-  <div style="border:1px solid #1f6feb55;background:#1f6feb18;border-radius:8px;padding:.55rem .85rem;margin:0 0 1.3rem;font-size:.82rem;color:#adbac7"><b style="color:#58a6ff">DEMO</b> · static snapshot with sample data — no backend running. Incident drill-down &amp; admin are live-only. Source: <a href="https://github.com/theMobiusStrip/crowsnest">theMobiusStrip/crowsnest</a></div>
+  <div style="border:1px solid #1f6feb55;background:#1f6feb18;border-radius:8px;padding:.55rem .85rem;margin:0 0 1.3rem;font-size:.82rem;color:#adbac7"><b style="color:#58a6ff">DEMO</b> · static snapshot with sample data — no backend running. Navigation works; write actions (manual triage, admin save) are disabled. Source: <a href="https://github.com/theMobiusStrip/crowsnest">theMobiusStrip/crowsnest</a></div>
   <div class="row" id="cards"></div>
 
   <div class="cols">
@@ -158,8 +158,8 @@
           (t.rationale ? '<div class="evidence">' + esc(t.rationale) + '</div>' : '')
         : '<span class="muted">—</span>';
       return '<tr><td>' + sevBadge(i.worst_severity) + '</td><td>' + hostLink(i.endpoint_host) +
-        '</td><td><a class="ilink" href="#' + enc(i.session_id) + '&amp;host=' + enc(i.endpoint_host) +
-        '" title="incident detail — live deployment only">' + esc(i.session_id) + ' ↗</a></td><td>' + (i.rules || []).map(esc).join(', ') +
+        '</td><td><a class="ilink" href="incident.html?session=' + enc(i.session_id) + '&amp;host=' + enc(i.endpoint_host) +
+        '" title="open incident details">' + esc(i.session_id) + ' ↗</a></td><td>' + (i.rules || []).map(esc).join(', ') +
         '</td><td>' + i.detections + '</td><td>' + i.score + '</td><td>' + triageCell + '</td></tr>';
     }).join('') || emptyRow(7, 'no incidents yet'));
 

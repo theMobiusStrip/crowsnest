@@ -1,0 +1,61 @@
+{
+  "incident": {
+    "session_id": "coble-1a05bd",
+    "endpoint_host": "prod-api-01",
+    "distinct_rules": 1,
+    "rules": [
+      "unsafe_tool_call"
+    ],
+    "worst_rank": 2,
+    "worst_severity": "medium",
+    "started": "2026-06-19 09:15:30",
+    "ended": "2026-06-19 09:16:30",
+    "span_seconds": 60,
+    "sensitivity": 3,
+    "burst": 2,
+    "score": 12,
+    "endpoint_user": "agent",
+    "detections": 2
+  },
+  "detections": [
+    {
+      "detection_id": "coble-1a05bd-01",
+      "event_id": "coble-1a05bd-e01",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "session_id": "coble-1a05bd",
+      "rule": "unsafe_tool_call",
+      "severity": "medium",
+      "ts": "2026-06-19 09:16:30",
+      "summary": "tool call to allowlisted path flagged by rule",
+      "detail": "tool=fs.write path=/srv/app/cache/agent.json — within allowlist (likely FP)"
+    },
+    {
+      "detection_id": "coble-1a05bd-02",
+      "event_id": "coble-1a05bd-e02",
+      "endpoint_user": "agent",
+      "endpoint_host": "prod-api-01",
+      "session_id": "coble-1a05bd",
+      "rule": "unsafe_tool_call",
+      "severity": "medium",
+      "ts": "2026-06-19 09:15:50",
+      "summary": "second write within the cache dir",
+      "detail": "tool=fs.write path=/srv/app/cache/state.json — within allowlist"
+    }
+  ],
+  "triage": {
+    "verdict": "likely_benign",
+    "score": 22,
+    "model": "claude-haiku-4-5",
+    "rationale": "Tool call flagged by the static rule, but arguments stayed within an allowlisted path. Most likely a false positive."
+  },
+  "triageHistory": [
+    {
+      "created_at": "2026-06-19 09:16:30",
+      "model": "claude-haiku-4-5",
+      "verdict": "likely_benign",
+      "score": 22,
+      "rationale": "Tool call flagged by the static rule, but arguments stayed within an allowlisted path. Most likely a false positive."
+    }
+  ]
+}

@@ -28,8 +28,9 @@ npm run build:demo                     # regenerate docs/ from source + fixtures
 python3 -m http.server 4173 -d docs    # preview locally → http://localhost:4173
 ```
 
-Enable once in **Settings → Pages → Deploy from a branch → `master` / `/docs`**. Incident
-drill-down and the admin console are live-only (they need the backend).
+Enable once in **Settings → Pages → Deploy from a branch → `master` / `/docs`**. The dashboard,
+incident drill-down, and admin console are all browsable; write actions (manual triage, admin
+save/restart) are disabled in the static demo.
 
 ## Quickstart (dev)
 
