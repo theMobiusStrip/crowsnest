@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { EventBatchSchema } from "../schema.js";
 import type { Store } from "../store/store.js";
+import { landingPage } from "./landing.js";
 
 /**
  * Stateless ingest API. coble's HttpSink POSTs batched events here. Stateless +
@@ -9,6 +10,8 @@ import type { Store } from "../store/store.js";
  */
 export function createServer(store: Store): Hono {
   const app = new Hono();
+
+  app.get("/", (c) => c.html(landingPage));
 
   app.get("/healthz", async (c) => {
     const ok = await store.ping().catch(() => false);
