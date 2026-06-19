@@ -160,28 +160,40 @@ export function registerReadApi(app: Hono, store: Store): void {
   // window, ranked by worst_severity × distinct_rules × host_sensitivity × burst_rate. ?host=
   app.get("/v1/incidents", async (c) => {
     const host = c.req.query("host");
-    const rows = await store.query<{
-      session_id: string;
-      endpoint_user: string;
-      endpoint_host: string;
-      detections: string;
-      distinct_rules: string;
-      rules: string[];
-      worst_rank: string;
-      worst_severity: string;
-      started: string;
-      ended: string;
-      span_seconds: string;
-    }>(
-      // Time-bound + severity-first ORDER so the LIMIT keeps the most relevant rows before the
-      // JS score sort (the score isn't expressible as a single SQL key).
-      `SELECT session_id, endpoint_user, endpoint_host, detections, distinct_rules, rules,
-              worst_rank, worst_severity, started, ended,
-              dateDiff('second', started, ended) AS span_seconds
-       FROM incidents
-       WHERE ended >= now() - INTERVAL 7 DAY ${host ? "AND endpoint_host = {host:String}" : ""}
-       ORDER BY worst_rank DESC, detections DESC LIMIT 500`,
-      host ? { host } : undefined,
+    const [rows, triageRows] = await Promise.all([
+      store.query<{
+        session_id: string;
+        endpoint_user: string;
+        endpoint_host: string;
+        detections: string;
+        distinct_rules: string;
+        rules: string[];
+        worst_rank: string;
+        worst_severity: string;
+        started: string;
+        ended: string;
+        span_seconds: string;
+      }>(
+        // Time-bound + severity-first ORDER so the LIMIT keeps the most relevant rows before the
+        // JS score sort (the score isn't expressible as a single SQL key).
+        `SELECT session_id, endpoint_user, endpoint_host, detections, distinct_rules, rules,
+                worst_rank, worst_severity, started, ended,
+                dateDiff('second', started, ended) AS span_seconds
+         FROM incidents
+         WHERE ended >= now() - INTERVAL 7 DAY ${host ? "AND endpoint_host = {host:String}" : ""}
+         ORDER BY worst_rank DESC, detections DESC LIMIT 500`,
+        host ? { host } : undefined,
+      ),
+      // Advisory triage, joined for display only — never changes the rule score or the sort.
+      store.query<{ session_id: string; endpoint_host: string; verdict: string; score: string; rationale: string; model: string }>(
+        `SELECT session_id, endpoint_host, verdict, score, rationale, model FROM triage FINAL`,
+      ),
+    ]);
+    const triageByKey = new Map(
+      triageRows.map((t) => [
+        `${t.session_id} ${t.endpoint_host}`,
+        { verdict: t.verdict, score: Number(t.score), rationale: t.rationale, model: t.model },
+      ]),
     );
     const incidents = rows
       .map((r) => {
@@ -190,7 +202,13 @@ export function registerReadApi(app: Hono, store: Store): void {
         // batches aren't amplified into a fake burst.
         const burst = Number(r.detections) / Math.max(1, Number(r.span_seconds) / 60);
         const score = Number(r.worst_rank) * Number(r.distinct_rules) * sensitivity * Math.max(1, burst);
-        return { ...r, sensitivity, burst: Math.round(burst * 100) / 100, score: Math.round(score * 100) / 100 };
+        return {
+          ...r,
+          sensitivity,
+          burst: Math.round(burst * 100) / 100,
+          score: Math.round(score * 100) / 100,
+          triage: triageByKey.get(`${r.session_id} ${r.endpoint_host}`) ?? null,
+        };
       })
       .sort((a, b) => b.score - a.score);
     return c.json({ incidents });

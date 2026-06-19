@@ -1,5 +1,5 @@
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
-import type { Event, Detection } from "../schema.js";
+import type { Event, Detection, Triage } from "../schema.js";
 import type { Store } from "./store.js";
 
 export interface ClickHouseConfig {
@@ -53,6 +53,20 @@ export function createClickHouseStore(cfg: ClickHouseConfig): Store {
         detail: d.detail ?? "",
       }));
       await client.insert({ table: "detections", values, format: "JSONEachRow" });
+    },
+
+    async appendTriage(triage: Triage[]) {
+      if (triage.length === 0) return;
+      const values = triage.map((t) => ({
+        session_id: t.session_id,
+        endpoint_host: t.endpoint_host,
+        detections: t.detections,
+        verdict: t.verdict,
+        score: t.score,
+        rationale: t.rationale,
+        model: t.model,
+      }));
+      await client.insert({ table: "triage", values, format: "JSONEachRow" });
     },
 
     async query<T = Record<string, unknown>>(sql: string, params?: Record<string, unknown>) {

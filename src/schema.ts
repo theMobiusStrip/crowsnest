@@ -55,3 +55,23 @@ export const DetectionSchema = z.object({
 });
 
 export type Detection = z.infer<typeof DetectionSchema>;
+
+export const TriageVerdict = z.enum(["likely_benign", "needs_review", "likely_malicious"]);
+
+/** The LLM's advisory output for one incident (validated; conservative fallback on mismatch). */
+export const VerdictSchema = z.object({
+  verdict: TriageVerdict,
+  score: z.number().int().min(0).max(100), // advisory risk score
+  rationale: z.string(),
+});
+export type Verdict = z.infer<typeof VerdictSchema>;
+
+/** A stored triage record — keyed by incident (session_id + host). ADVISORY: it augments,
+ *  never overrides, the deterministic rule detections. */
+export const TriageSchema = VerdictSchema.extend({
+  session_id: z.string(),
+  endpoint_host: z.string(),
+  detections: z.number().int().nonnegative(), // count triaged → re-triage when it changes
+  model: z.string(),
+});
+export type Triage = z.infer<typeof TriageSchema>;

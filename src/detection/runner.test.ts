@@ -14,6 +14,7 @@ function mockStore(rows: Record<string, unknown>[]): Store & { detections: Detec
     async appendDetections(d) {
       detections.push(...d);
     },
+    async appendTriage() {},
     async query() {
       return rows as never;
     },

@@ -27,6 +27,9 @@ export const spyglassPage = `<!doctype html>
   .sev { display:inline-block; min-width:5.2em; text-align:center; padding:0 .45em; border-radius:4px; font-size:.72rem; }
   .critical { background:#f8514933; color:#ff7b72; } .high { background:#db6d2833; color:#f0883e; }
   .medium { background:#d2992233; color:#e3b341; } .low { background:#3fb95033; color:#7ee787; }
+  .vd { display:inline-block; padding:0 .4em; border-radius:4px; font-size:.7rem; }
+  .likely_benign { background:#3fb95033; color:#7ee787; } .needs_review { background:#d2992233; color:#e3b341; }
+  .likely_malicious { background:#f8514933; color:#ff7b72; }
   .muted { color:#7d8590; } a { color:#58a6ff; text-decoration:none; } a:hover { text-decoration:underline; }
   .bar { height:.5rem; background:#1f6feb55; border-radius:3px; }
   .tag { font-size:.68rem; padding:0 .4em; border-radius:4px; background:#30363d; color:#adbac7; }
@@ -57,9 +60,9 @@ export const spyglassPage = `<!doctype html>
   <h2>Fleet-wide — same rule across &gt;1 host (24h)</h2>
   <table><tbody id="correlations"></tbody></table>
 
-  <h2>Incidents — ranked by risk</h2>
+  <h2>Incidents — ranked by rule risk · triage is advisory (AI)</h2>
   <table>
-    <thead><tr><th>severity</th><th>host</th><th>session</th><th>rules</th><th>det</th><th>score</th></tr></thead>
+    <thead><tr><th>severity</th><th>host</th><th>session</th><th>rules</th><th>det</th><th>score</th><th>triage</th></tr></thead>
     <tbody id="incidents"></tbody>
   </table>
 
@@ -123,10 +126,15 @@ export const spyglassPage = `<!doctype html>
     }).join('') || emptyRow(3, 'no cross-host correlations'));
 
     set('incidents', (inc.incidents || []).map(function (i) {
+      var t = i.triage;
+      var triageCell = t
+        ? '<span class="vd ' + esc(t.verdict) + '">' + esc(String(t.verdict).replace(/_/g, ' ')) + '</span> ' + esc(t.score) +
+          (t.rationale ? '<div class="evidence">' + esc(t.rationale) + '</div>' : '')
+        : '<span class="muted">—</span>';
       return '<tr><td>' + sevBadge(i.worst_severity) + '</td><td>' + hostLink(i.endpoint_host) +
         '</td><td class="muted">' + esc(i.session_id) + '</td><td>' + (i.rules || []).map(esc).join(', ') +
-        '</td><td>' + i.detections + '</td><td>' + i.score + '</td></tr>';
-    }).join('') || emptyRow(6, 'no incidents yet'));
+        '</td><td>' + i.detections + '</td><td>' + i.score + '</td><td>' + triageCell + '</td></tr>';
+    }).join('') || emptyRow(7, 'no incidents yet'));
 
     set('detections', (det.detections || []).map(function (d) {
       var evidence = d.detail ? '<div class="evidence">' + esc(d.detail) + '</div>' : '';
