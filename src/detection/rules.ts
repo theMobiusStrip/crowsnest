@@ -45,4 +45,13 @@ export const rules: Rule[] = [
     // rule/mode deny). Match both so the built-in protection's signal isn't missed.
     sql: `SELECT ${PROJECT} FROM events FINAL WHERE decision IN ('denied', 'error') AND tool = 'read_file'`,
   },
+  {
+    id: "remote-egress",
+    severity: "low",
+    title: "Remote egress (push / PR)",
+    // Code/PR leaving the machine. coble's git_push targets origin and create_pull_request
+    // opens a PR; "non-origin" isn't structurally distinguishable (a raw `git push <remote>`
+    // rides inside bash detail), so this surfaces push/PR egress that actually executed.
+    sql: `SELECT ${PROJECT} FROM events FINAL WHERE tool IN ('git_push', 'create_pull_request') AND decision IN ('approved', 'auto')`,
+  },
 ];
