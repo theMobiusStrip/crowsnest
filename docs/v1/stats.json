@@ -1,0 +1,75 @@
+{
+  "totals": {
+    "detections": 47
+  },
+  "bySeverity": [
+    {
+      "severity": "critical",
+      "n": 6
+    },
+    {
+      "severity": "high",
+      "n": 12
+    },
+    {
+      "severity": "medium",
+      "n": 18
+    },
+    {
+      "severity": "low",
+      "n": 11
+    }
+  ],
+  "byRule": [
+    {
+      "rule": "dangerous_shell_cmd",
+      "n": 11
+    },
+    {
+      "rule": "secret_in_prompt",
+      "n": 9
+    },
+    {
+      "rule": "prompt_injection",
+      "n": 8
+    },
+    {
+      "rule": "data_exfil_curl",
+      "n": 7
+    },
+    {
+      "rule": "unsafe_tool_call",
+      "n": 6
+    },
+    {
+      "rule": "pii_in_output",
+      "n": 4
+    },
+    {
+      "rule": "sandbox_escape_attempt",
+      "n": 2
+    }
+  ],
+  "byDay": [
+    {
+      "day": "2026-06-19",
+      "n": 14
+    },
+    {
+      "day": "2026-06-18",
+      "n": 11
+    },
+    {
+      "day": "2026-06-17",
+      "n": 9
+    },
+    {
+      "day": "2026-06-16",
+      "n": 7
+    },
+    {
+      "day": "2026-06-15",
+      "n": 6
+    }
+  ]
+}

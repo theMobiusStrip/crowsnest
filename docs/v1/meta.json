@@ -1,0 +1,8 @@
+{
+  "triage": {
+    "enabled": true,
+    "model": "claude-haiku-4-5",
+    "baseUrl": "https://api.anthropic.com",
+    "keyPresent": true
+  }
+}

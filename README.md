@@ -12,6 +12,25 @@ Shipped (local-first): ingest → ClickHouse · detection runner + SQL rules →
 **spyglass** dashboard (fleet view · cross-host correlation · incident detail) · advisory
 **LLM triage** (Anthropic, default off) · admin console. Next: migration runner.
 
+## Live demo (GitHub Pages)
+
+A static, backend-free snapshot of the **spyglass** dashboard (sample data, no ClickHouse) is
+published to GitHub Pages:
+
+**https://themobiusstrip.github.io/crowsnest/**
+
+It's the real dashboard, not a mockup — [`scripts/build-demo.mjs`](scripts/build-demo.mjs) extracts
+the page straight from [`src/api/spyglass.ts`](src/api/spyglass.ts), rewrites the `/v1/*` fetches to
+static JSON fixtures, and writes the result to [`docs/`](docs/). Rebuild after any dashboard change:
+
+```bash
+npm run build:demo                     # regenerate docs/ from source + fixtures
+python3 -m http.server 4173 -d docs    # preview locally → http://localhost:4173
+```
+
+Enable once in **Settings → Pages → Deploy from a branch → `master` / `/docs`**. Incident
+drill-down and the admin console are live-only (they need the backend).
+
 ## Quickstart (dev)
 
 ```bash
