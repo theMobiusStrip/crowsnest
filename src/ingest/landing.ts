@@ -60,7 +60,7 @@ export const landingPage = `<!doctype html>
   <h2>Try it</h2>
   <pre>curl -sS localhost:8787/v1/events -H 'content-type: application/json' \\
   -d '{"events":[{"schema_version":1,"event_id":"x1","ts":"2026-06-18T22:00:00Z",
-  "endpoint":{"user":"evan","host":"mac"},"session_id":"s1","coble_version":"0.4.1",
+  "endpoint":{"user":"alice","host":"laptop"},"session_id":"s1","coble_version":"0.4.1",
   "mode":"default","sandbox_on":false,"tool":"bash","tier":"safe","decision":"auto"}]}'</pre>
 
   <footer>crowsnest · <a href="https://github.com/theMobiusStrip/crowsnest">github.com/theMobiusStrip/crowsnest</a></footer>

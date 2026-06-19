@@ -30,7 +30,7 @@ Send a test event:
 ```bash
 curl -sS localhost:8787/v1/events -H 'content-type: application/json' -d '{
   "events": [{ "schema_version": 1, "event_id": "demo-1", "ts": "2026-06-18T22:00:00.000Z",
-    "endpoint": { "user": "evan", "host": "mac" }, "session_id": "s1",
+    "endpoint": { "user": "alice", "host": "laptop" }, "session_id": "s1",
     "coble_version": "0.4.1", "mode": "default", "sandbox_on": false,
     "tool": "bash", "tier": "safe", "decision": "auto" }]
 }'   # → {"accepted":1}

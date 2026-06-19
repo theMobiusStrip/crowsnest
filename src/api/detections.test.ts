@@ -35,8 +35,8 @@ const detection = {
   severity: "high",
   ts: "2026-06-18T22:00:00.000Z",
   event_id: "e1",
-  endpoint_user: "evan",
-  endpoint_host: "mac",
+  endpoint_user: "alice",
+  endpoint_host: "laptop",
   session_id: "s1",
   summary: "Denied dangerous command — bash · dangerous · denied",
   detail: "rule:deny",
@@ -94,15 +94,15 @@ describe("GET /v1/stats", () => {
 describe("GET /v1/detections ?host filter", () => {
   it("binds the host param", async () => {
     const calls: QueryCall[] = [];
-    await createServer(mockStore([], { calls })).request("/v1/detections?host=mac");
-    expect(calls[0]?.params?.host).toBe("mac");
+    await createServer(mockStore([], { calls })).request("/v1/detections?host=laptop");
+    expect(calls[0]?.params?.host).toBe("laptop");
   });
 });
 
 describe("fleet-view endpoints", () => {
   it("GET /v1/fleet rolls up per host with stale + risk", async () => {
     const fleetRow = {
-      endpoint_user: "evan",
+      endpoint_user: "alice",
       endpoint_host: "prod-1",
       events: "5",
       last_seen: "2026-06-18 00:00:00",
@@ -132,7 +132,7 @@ describe("fleet-view endpoints", () => {
   it("GET /v1/incidents scores and ranks", async () => {
     const inc = {
       session_id: "s1",
-      endpoint_user: "evan",
+      endpoint_user: "alice",
       endpoint_host: "prod-1",
       detections: "4",
       distinct_rules: "2",
@@ -153,7 +153,7 @@ describe("fleet-view endpoints", () => {
   it("GET /v1/incidents attaches advisory triage when present", async () => {
     const row = {
       session_id: "s1",
-      endpoint_user: "evan",
+      endpoint_user: "alice",
       endpoint_host: "prod-1",
       detections: "1",
       distinct_rules: "1",
@@ -177,7 +177,7 @@ describe("fleet-view endpoints", () => {
   it("GET /v1/incident returns the incident, its detections, and triage", async () => {
     const row = {
       session_id: "s1",
-      endpoint_user: "evan",
+      endpoint_user: "alice",
       endpoint_host: "prod-1",
       detections: "1",
       distinct_rules: "1",
