@@ -13,6 +13,37 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # The crowsnest server as a durable daemon: restart:unless-stopped relaunches it on exit (so the
+  # admin /v1/restart button recovers) and across reboots.
+  crowsnest:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "8787:8787"
+    environment:
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DB: crowsnest
+      CROWSNEST_SECRETS: /data/secrets.json # console-set key/base URL persist on the volume below
+      PORT: "8787"
+    env_file:
+      # optional: ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL / TRIAGE_* (project root .env)
+      - path: ../.env
+        required: false
+    volumes:
+      - cn-config:/data
 
 volumes:
   ch-data:
+  cn-config:
