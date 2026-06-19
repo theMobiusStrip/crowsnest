@@ -32,6 +32,31 @@ function hostSensitivity(host: string): number {
   return 1;
 }
 
+/** Heartbeat thresholds. A host is "live" if it shipped events recently, "idle" if quiet but
+ *  seen within a day, "stale" if silent past a day — a stopped agent / coverage gap, not just a
+ *  quiet one. The age (now() − max(ts)) is computed in SQL; this maps it to a state. A host with
+ *  no event heartbeat at all (null) is treated as stale. */
+const LIVE_WITHIN_S = 3600; // ≤ 1h → live
+const STALE_AFTER_S = 86400; // > 24h → stale
+type Health = "live" | "idle" | "stale";
+function hostHealth(ageSeconds: number | null): Health {
+  if (ageSeconds === null || !Number.isFinite(ageSeconds)) return "stale";
+  if (ageSeconds <= LIVE_WITHIN_S) return "live";
+  if (ageSeconds > STALE_AFTER_S) return "stale";
+  return "idle";
+}
+
+/** Fleet-wide heartbeat rollup: total hosts + how many in each state. The "fleet-wide host
+ *  health monitor" surfaced on the dashboard and at /v1/health. */
+function healthSummary(items: { health: Health }[]): { hosts: number; live: number; idle: number; stale: number } {
+  return {
+    hosts: items.length,
+    live: items.filter((h) => h.health === "live").length,
+    idle: items.filter((h) => h.health === "idle").length,
+    stale: items.filter((h) => h.health === "stale").length,
+  };
+}
+
 /** Shared severity/rule/host filter for the detection list + stats. Parameterised — never
  *  interpolates user input into SQL. */
 function detectionFilter(c: Context): { clause: string; params: Record<string, unknown> } {
@@ -56,6 +81,8 @@ interface FleetRow {
   endpoint_host: string;
   events: number;
   last_seen: string | null;
+  age_seconds: number | null;
+  health: Health;
   stale: boolean;
   sensitivity: number;
   detections: number;
@@ -164,11 +191,15 @@ export function registerReadApi(app: Hono, store: Store): void {
 
     const byHost = new Map<string, FleetRow>();
     for (const a of activity) {
+      const age = Number(a.age_seconds);
+      const health = hostHealth(age);
       byHost.set(a.endpoint_host, {
         endpoint_host: a.endpoint_host,
         events: Number(a.events),
         last_seen: a.last_seen,
-        stale: Number(a.age_seconds) > 86400, // no events in >24h
+        age_seconds: Number.isFinite(age) ? age : null,
+        health,
+        stale: health === "stale", // no events in >24h
         sensitivity: hostSensitivity(a.endpoint_host),
         detections: 0,
         crit: 0,
@@ -185,7 +216,9 @@ export function registerReadApi(app: Hono, store: Store): void {
           endpoint_host: d.endpoint_host,
           events: 0,
           last_seen: null,
-          stale: false,
+          age_seconds: null,
+          health: "stale", // detections but no event heartbeat → no coverage
+          stale: true,
           sensitivity: hostSensitivity(d.endpoint_host),
           detections: 0,
           crit: 0,
@@ -205,7 +238,30 @@ export function registerReadApi(app: Hono, store: Store): void {
     const fleet = [...byHost.values()].sort(
       (a, b) => b.risk - a.risk || (b.last_seen ?? "").localeCompare(a.last_seen ?? ""),
     );
-    return c.json({ fleet });
+    return c.json({ fleet, health: healthSummary(fleet) });
+  });
+
+  // Fleet host-health monitor — one heartbeat per host from its last event, classified
+  // live/idle/stale. Distinct from /healthz (this service's own liveness): this reports whether
+  // each *monitored agent* is still shipping; a stale host is a stopped agent / coverage gap.
+  // Pollable by an external uptime monitor; stalest hosts first so gaps surface at the top.
+  app.get("/v1/health", async (c) => {
+    const rows = await store.query<{ endpoint_host: string; last_seen: string; age_seconds: string }>(
+      `SELECT endpoint_host, max(ts) AS last_seen, dateDiff('second', max(ts), now()) AS age_seconds
+       FROM events FINAL GROUP BY endpoint_host`,
+    );
+    const hosts = rows
+      .map((r) => {
+        const age = Number(r.age_seconds);
+        return {
+          endpoint_host: r.endpoint_host,
+          last_seen: r.last_seen,
+          age_seconds: Number.isFinite(age) ? age : null,
+          health: hostHealth(age),
+        };
+      })
+      .sort((a, b) => (b.age_seconds ?? Infinity) - (a.age_seconds ?? Infinity));
+    return c.json({ summary: healthSummary(hosts), hosts });
   });
 
   // Cross-host correlation — the same rule firing across >1 host in 24h (by event time) = a

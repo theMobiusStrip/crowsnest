@@ -29,7 +29,8 @@ npm run up         # build + start the whole stack   ·   npm run down to stop
 ```
 
 - **Dashboard:** http://localhost:8787/spyglass · ingest: `POST /v1/events` · health: `GET /healthz`
-- **Read API:** `/v1/detections` · `/v1/stats` · `/v1/fleet` · `/v1/correlations` · `/v1/incident(s)`
+- **Read API:** `/v1/detections` · `/v1/stats` · `/v1/fleet` · `/v1/health` (per-host heartbeat) ·
+  `/v1/correlations` · `/v1/incident(s)`
 - ClickHouse HTTP: http://localhost:8123
 
 Send a test event:

@@ -122,11 +122,41 @@ describe("fleet-view endpoints", () => {
     };
     const res = await createServer(mockStore([fleetRow])).request("/v1/fleet");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { fleet: Array<Record<string, unknown>> };
+    const body = (await res.json()) as {
+      fleet: Array<Record<string, unknown>>;
+      health: Record<string, number>;
+    };
     expect(body.fleet).toHaveLength(1);
-    expect(body.fleet[0]).toMatchObject({ endpoint_host: "prod-1", detections: 3, stale: true, sensitivity: 3 });
+    expect(body.fleet[0]).toMatchObject({
+      endpoint_host: "prod-1",
+      detections: 3,
+      stale: true,
+      health: "stale",
+      age_seconds: 100000,
+      sensitivity: 3,
+    });
     // risk = sensitivity(3) × (4·crit1 + 3·high0 + 2·med2 + low0) = 3 × 8 = 24
     expect(body.fleet[0].risk).toBe(24);
+    expect(body.health).toEqual({ hosts: 1, live: 0, idle: 0, stale: 1 });
+  });
+
+  it("GET /v1/health classifies host heartbeats live/idle/stale, stalest first", async () => {
+    const rows = [
+      { endpoint_host: "a", last_seen: "2026-06-19 00:00:00", age_seconds: "100" }, // ≤1h → live
+      { endpoint_host: "b", last_seen: "2026-06-18 12:00:00", age_seconds: "7200" }, // ≤24h → idle
+      { endpoint_host: "c", last_seen: "2026-06-16 00:00:00", age_seconds: "200000" }, // >24h → stale
+    ];
+    const res = await createServer(mockStore(rows)).request("/v1/health");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      summary: Record<string, number>;
+      hosts: Array<Record<string, unknown>>;
+    };
+    expect(body.summary).toEqual({ hosts: 3, live: 1, idle: 1, stale: 1 });
+    // stalest (largest age) first
+    expect(body.hosts.map((h) => h.endpoint_host)).toEqual(["c", "b", "a"]);
+    expect(body.hosts[0]).toMatchObject({ endpoint_host: "c", health: "stale", age_seconds: 200000 });
+    expect(body.hosts[2]).toMatchObject({ endpoint_host: "a", health: "live" });
   });
 
   it("GET /v1/correlations returns the rows", async () => {

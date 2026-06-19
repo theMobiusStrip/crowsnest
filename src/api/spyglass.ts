@@ -41,6 +41,10 @@ export const spyglassPage = `<!doctype html>
   .bar { height:.5rem; background:#1f6feb55; border-radius:3px; }
   .tag { font-size:.68rem; padding:0 .4em; border-radius:4px; background:#30363d; color:#adbac7; }
   .tag.stale { background:#f8514933; color:#ff7b72; }
+  .hl { display:inline-block; padding:0 .4em; border-radius:4px; font-size:.68rem; }
+  .hl.live { background:#3fb95033; color:#7ee787; } .hl.idle { background:#d2992233; color:#e3b341; }
+  .hl.stale { background:#f8514933; color:#ff7b72; }
+  .fleethealth { margin:-.1rem 0 .55rem; font-size:.82rem; }
   .evidence { color:#6e7681; font-size:.85em; white-space:pre-wrap; word-break:break-word; margin-top:.15rem; }
   .filter { background:#1f6feb22; border:1px solid #1f6feb55; border-radius:6px; padding:.05rem .45rem; }
 </style>
@@ -58,8 +62,9 @@ export const spyglassPage = `<!doctype html>
 
   <div class="cols">
     <div>
-      <h2>By endpoint</h2>
-      <table><thead><tr><th>host</th><th>det</th><th>crit</th><th>last seen</th></tr></thead><tbody id="fleet"></tbody></table>
+      <h2>By endpoint <span class="hint" tabindex="0">&#9432;<span class="tip">Per-host heartbeat from the last event: <b>live</b> &le;1h, <b>idle</b> &le;24h, <b>stale</b> &gt;24h (agent stopped shipping — a coverage gap).</span></span></h2>
+      <div class="fleethealth" id="fleethealth"></div>
+      <table><thead><tr><th>host</th><th>health</th><th>det</th><th>crit</th><th>last seen</th></tr></thead><tbody id="fleet"></tbody></table>
     </div>
     <div>
       <h2>By rule</h2>
@@ -91,6 +96,7 @@ export const spyglassPage = `<!doctype html>
   var hostP = function (sep) { return host ? sep + 'host=' + enc(host) : ''; };
   var set = function (id, html) { document.getElementById(id).innerHTML = html; };
   var sevBadge = function (s) { return '<span class="sev ' + esc(s) + '">' + esc(s) + '</span>'; };
+  var hlBadge = function (h) { h = h || 'stale'; return '<span class="hl ' + esc(h) + '">' + esc(h) + '</span>'; };
   var hostLink = function (h) { return '<a href="?host=' + enc(h) + '">' + esc(h) + '</a>'; };
   var emptyRow = function (cols, text) { return '<tr><td colspan="' + cols + '" class="muted">' + text + '</td></tr>'; };
 
@@ -119,12 +125,19 @@ export const spyglassPage = `<!doctype html>
       return '<div class="card"><div class="n">' + kv[1] + '</div><div class="k">' + kv[0] + '</div></div>';
     }).join(''));
 
+    var fh = fleet.health || { hosts: 0, live: 0, idle: 0, stale: 0 };
+    set('fleethealth', fh.hosts
+      ? '<span class="hl live">' + fh.live + ' live</span> · <span class="hl idle">' + fh.idle +
+        ' idle</span> · <span class="hl stale">' + fh.stale + ' stale</span> ' +
+        '<span class="muted">of ' + fh.hosts + '</span>'
+      : '<span class="muted">no hosts yet</span>');
+
     set('fleet', (fleet.fleet || []).map(function (f) {
-      var tags = (f.stale ? ' <span class="tag stale">stale</span>' : '') +
-        (f.sensitivity > 1 ? ' <span class="tag">' + (f.sensitivity === 3 ? 'prod' : 'ci/stg') + '</span>' : '');
-      return '<tr><td>' + hostLink(f.endpoint_host) + tags + '</td><td>' + f.detections +
-        '</td><td>' + (f.crit || 0) + '</td><td class="muted">' + esc(f.last_seen || '—') + '</td></tr>';
-    }).join('') || emptyRow(4, 'no endpoints yet'));
+      var tags = (f.sensitivity > 1 ? ' <span class="tag">' + (f.sensitivity === 3 ? 'prod' : 'ci/stg') + '</span>' : '');
+      return '<tr><td>' + hostLink(f.endpoint_host) + tags + '</td><td>' + hlBadge(f.health) +
+        '</td><td>' + f.detections + '</td><td>' + (f.crit || 0) + '</td><td class="muted">' +
+        esc(f.last_seen || '—') + '</td></tr>';
+    }).join('') || emptyRow(5, 'no endpoints yet'));
 
     var rules = stats.byRule || [];
     var max = Math.max.apply(null, [1].concat(rules.map(function (r) { return Number(r.n); })));
