@@ -4,6 +4,7 @@ import type { Store } from "../store/store.js";
 import { landingPage } from "./landing.js";
 import { registerReadApi } from "../api/detections.js";
 import { spyglassPage } from "../api/spyglass.js";
+import { incidentPage } from "../api/incident.js";
 
 /**
  * Stateless ingest API. coble's HttpSink POSTs batched events here. Stateless +
@@ -49,7 +50,8 @@ export function createServer(store: Store): Hono {
   });
 
   app.get("/spyglass", (c) => c.html(spyglassPage));
-  registerReadApi(app, store); // GET /v1/detections, GET /v1/stats
+  app.get("/spyglass/incident", (c) => c.html(incidentPage));
+  registerReadApi(app, store); // GET /v1/detections, /v1/stats, /v1/fleet, /v1/correlations, /v1/incident(s)
 
   return app;
 }
