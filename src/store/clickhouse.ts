@@ -1,5 +1,5 @@
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
-import type { Event } from "../schema.js";
+import type { Event, Finding } from "../schema.js";
 import type { Store } from "./store.js";
 
 export interface ClickHouseConfig {
@@ -36,6 +36,23 @@ export function createClickHouseStore(cfg: ClickHouseConfig): Store {
         detail: e.detail ?? "",
       }));
       await client.insert({ table: "events", values, format: "JSONEachRow" });
+    },
+
+    async appendFindings(findings: Finding[]) {
+      if (findings.length === 0) return;
+      const values = findings.map((f) => ({
+        finding_id: f.finding_id,
+        rule: f.rule,
+        severity: f.severity,
+        ts: f.ts,
+        event_id: f.event_id ?? "",
+        endpoint_user: f.endpoint_user ?? "",
+        endpoint_host: f.endpoint_host ?? "",
+        session_id: f.session_id ?? "",
+        summary: f.summary,
+        detail: f.detail ?? "",
+      }));
+      await client.insert({ table: "findings", values, format: "JSONEachRow" });
     },
 
     async query<T = Record<string, unknown>>(sql: string, params?: Record<string, unknown>) {

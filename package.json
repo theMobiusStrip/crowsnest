@@ -12,6 +12,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "detect": "tsx src/detect.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "ch:up": "docker compose -f docker/docker-compose.yml up -d",
