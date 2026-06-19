@@ -1,4 +1,4 @@
-import type { Event, Finding } from "../schema.js";
+import type { Event, Detection } from "../schema.js";
 
 /**
  * Storage seam. The ingest server and detection runner depend on this interface,
@@ -8,8 +8,8 @@ import type { Event, Finding } from "../schema.js";
 export interface Store {
   /** Append events. Idempotent at the storage layer (dedup by `event_id`). */
   append(events: Event[]): Promise<void>;
-  /** Append detection findings. Idempotent (dedup by `finding_id`). */
-  appendFindings(findings: Finding[]): Promise<void>;
+  /** Append detections. Idempotent (dedup by `detection_id`). */
+  appendDetections(detections: Detection[]): Promise<void>;
   /** Run a read query (detection runner / read API). */
   query<T = Record<string, unknown>>(sql: string, params?: Record<string, unknown>): Promise<T[]>;
   /** Liveness check for `/healthz`. */

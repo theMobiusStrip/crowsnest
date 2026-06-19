@@ -1,4 +1,4 @@
-import type { Finding } from "../schema.js";
+import type { Detection } from "../schema.js";
 import type { Store } from "../store/store.js";
 import { rules } from "./rules.js";
 
@@ -18,16 +18,16 @@ export interface RuleResult {
 }
 
 /**
- * Run every detection rule against the store and write findings. Idempotent:
- * `finding_id = rule:event_id`, so re-running over the same events is deduped by
- * the findings table (ReplacingMergeTree) — a simple scan-all is fine at MVP scale.
+ * Run every detection rule against the store and write detections. Idempotent:
+ * `detection_id = rule:event_id`, so re-running over the same events is deduped by
+ * the detections table (ReplacingMergeTree) — a simple scan-all is fine at MVP scale.
  */
 export async function runDetections(store: Store): Promise<RuleResult[]> {
   const results: RuleResult[] = [];
   for (const r of rules) {
     const rows = await store.query<MatchRow>(r.sql);
-    const findings: Finding[] = rows.map((row) => ({
-      finding_id: `${r.id}:${row.event_id}`,
+    const detections: Detection[] = rows.map((row) => ({
+      detection_id: `${r.id}:${row.event_id}`,
       rule: r.id,
       severity: r.severity,
       ts: row.ts,
@@ -38,8 +38,8 @@ export async function runDetections(store: Store): Promise<RuleResult[]> {
       summary: `${r.title} — ${row.summary}`,
       detail: row.detail,
     }));
-    if (findings.length > 0) await store.appendFindings(findings);
-    results.push({ rule: r.id, found: findings.length });
+    if (detections.length > 0) await store.appendDetections(detections);
+    results.push({ rule: r.id, found: detections.length });
   }
   return results;
 }

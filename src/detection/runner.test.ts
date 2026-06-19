@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { Finding } from "../schema.js";
+import type { Detection } from "../schema.js";
 import type { Store } from "../store/store.js";
 import { rules } from "./rules.js";
 import { runDetections } from "./runner.js";
 
 /** Store whose `query` returns canned rows for every rule — lets us test the
  *  runner's mapping/orchestration without ClickHouse (SQL correctness is E2E). */
-function mockStore(rows: Record<string, unknown>[]): Store & { findings: Finding[] } {
-  const findings: Finding[] = [];
+function mockStore(rows: Record<string, unknown>[]): Store & { detections: Detection[] } {
+  const detections: Detection[] = [];
   return {
-    findings,
+    detections,
     async append() {},
-    async appendFindings(f) {
-      findings.push(...f);
+    async appendDetections(d) {
+      detections.push(...d);
     },
     async query() {
       return rows as never;
@@ -35,16 +35,16 @@ const match = {
 };
 
 describe("runDetections", () => {
-  it("turns matched rows into findings tagged with rule id + severity", async () => {
+  it("turns matched rows into detections tagged with rule id + severity", async () => {
     const store = mockStore([match]); // every rule matches the one row
     const results = await runDetections(store);
 
     expect(results).toHaveLength(rules.length);
-    expect(store.findings).toHaveLength(rules.length); // one finding per rule
+    expect(store.detections).toHaveLength(rules.length); // one detection per rule
 
-    const denied = store.findings.find((f) => f.rule === "denied-dangerous");
+    const denied = store.detections.find((d) => d.rule === "denied-dangerous");
     expect(denied).toMatchObject({
-      finding_id: "denied-dangerous:e1", // deterministic → dedup key
+      detection_id: "denied-dangerous:e1", // deterministic → dedup key
       severity: "high",
       event_id: "e1",
       endpoint_user: "evan",
@@ -55,7 +55,7 @@ describe("runDetections", () => {
   it("writes nothing and reports zero when no events match", async () => {
     const store = mockStore([]);
     const results = await runDetections(store);
-    expect(store.findings).toHaveLength(0);
+    expect(store.detections).toHaveLength(0);
     expect(results.every((r) => r.found === 0)).toBe(true);
   });
 });

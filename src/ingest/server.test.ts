@@ -12,7 +12,7 @@ function memoryStore(opts: { failAppend?: boolean; pingOk?: boolean } = {}): Sto
       if (opts.failAppend) throw new Error("boom");
       rows.push(...events);
     },
-    async appendFindings() {},
+    async appendDetections() {},
     async query() {
       return [];
     },
