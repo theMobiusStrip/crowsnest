@@ -69,6 +69,19 @@ export function parseVerdict(text: string): Verdict {
   }
 }
 
+interface AnthropicMessage {
+  content?: { type?: string; text?: string }[];
+}
+
+/** Pull assistant text from an Anthropic Messages response, skipping non-text blocks — an
+ *  extended-thinking block precedes the text block in the content array. */
+export function extractText(data: AnthropicMessage): string {
+  return (data?.content ?? [])
+    .filter((b) => b?.type === "text")
+    .map((b) => b.text ?? "")
+    .join("");
+}
+
 /** Deterministic stub — no key, no network. Used for tests + keyless local runs. */
 export function mockProvider(): TriageProvider {
   const rank: Record<string, number> = { critical: 90, high: 70, medium: 45, low: 20 };
@@ -109,8 +122,7 @@ export function anthropicProvider(cfg: TriageConfig): TriageProvider {
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
         if (!res.ok) return FALLBACK;
-        const data = (await res.json()) as { content?: { text?: string }[] };
-        return parseVerdict(data?.content?.[0]?.text ?? "");
+        return parseVerdict(extractText((await res.json()) as AnthropicMessage));
       } catch {
         return FALLBACK;
       }

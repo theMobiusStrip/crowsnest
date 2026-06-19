@@ -13,7 +13,8 @@ export const spyglassPage = `<!doctype html>
     background:#0b0e14; color:#c9d1d9; padding:2rem 1.25rem; }
   main { max-width:1040px; margin:0 auto; }
   h1 { font-size:1.6rem; margin:0; color:#e6edf3; }
-  .sub { color:#7d8590; margin:.2rem 0 1.2rem; }
+  .sub { color:#7d8590; margin:.2rem 0 .4rem; }
+  .desc { color:#8b949e; margin:0 0 1.4rem; max-width:74ch; }
   .row { display:flex; flex-wrap:wrap; gap:.8rem; margin-bottom:1.2rem; }
   .card { flex:1; min-width:110px; border:1px solid #21262d; border-radius:10px; padding:.7rem 1rem; background:#0f141c; }
   .card .n { font-size:1.7rem; font-weight:700; color:#e6edf3; }
@@ -31,6 +32,12 @@ export const spyglassPage = `<!doctype html>
   .likely_benign { background:#3fb95033; color:#7ee787; } .needs_review { background:#d2992233; color:#e3b341; }
   .likely_malicious { background:#f8514933; color:#ff7b72; }
   .muted { color:#7d8590; } a { color:#58a6ff; text-decoration:none; } a:hover { text-decoration:underline; }
+  .hint { position:relative; cursor:help; color:#7d8590; font-size:.82em; border-bottom:1px dotted #6e7681; }
+  .hint .tip { display:none; position:absolute; left:0; top:1.5em; z-index:20; width:250px;
+    background:#161b22; border:1px solid #30363d; border-radius:6px; padding:.5rem .6rem; color:#c9d1d9;
+    font-size:.78rem; line-height:1.45; text-transform:none; letter-spacing:0; font-weight:400; white-space:normal; }
+  .hint:hover .tip, .hint:focus .tip { display:block; }
+  a.ilink { text-decoration:underline; font-weight:600; }
   .bar { height:.5rem; background:#1f6feb55; border-radius:3px; }
   .tag { font-size:.68rem; padding:0 .4em; border-radius:4px; background:#30363d; color:#adbac7; }
   .tag.stale { background:#f8514933; color:#ff7b72; }
@@ -43,6 +50,8 @@ export const spyglassPage = `<!doctype html>
   <h1>🔭 spyglass</h1>
   <p class="sub">crowsnest fleet view · <a href="/">ingest API</a> · <span id="scope"></span> ·
     <span id="updated" class="muted">loading…</span></p>
+  <p class="desc">Security console for the <a href="https://github.com/theMobiusStrip/coble">coble</a> fleet —
+    deterministic detections + advisory LLM triage across every agent run, by endpoint, rule, and incident.</p>
 
   <div class="row" id="cards"></div>
 
@@ -62,7 +71,7 @@ export const spyglassPage = `<!doctype html>
 
   <h2>Incidents — ranked by rule risk · triage is advisory (AI)</h2>
   <table>
-    <thead><tr><th>severity</th><th>host</th><th>session</th><th>rules</th><th>det</th><th>score</th><th>triage</th></tr></thead>
+    <thead><tr><th>severity</th><th>host</th><th>session <span class="hint" tabindex="0">&#9432;<span class="tip">One coble run — a single agent conversation/session. All its detections are grouped into this incident; click the session to open it.</span></span></th><th>rules</th><th>det</th><th>score</th><th>triage</th></tr></thead>
     <tbody id="incidents"></tbody>
   </table>
 
@@ -132,7 +141,8 @@ export const spyglassPage = `<!doctype html>
           (t.rationale ? '<div class="evidence">' + esc(t.rationale) + '</div>' : '')
         : '<span class="muted">—</span>';
       return '<tr><td>' + sevBadge(i.worst_severity) + '</td><td>' + hostLink(i.endpoint_host) +
-        '</td><td class="muted">' + esc(i.session_id) + '</td><td>' + (i.rules || []).map(esc).join(', ') +
+        '</td><td><a class="ilink" href="/spyglass/incident?session=' + enc(i.session_id) + '&amp;host=' + enc(i.endpoint_host) +
+        '" title="open incident details">' + esc(i.session_id) + ' ↗</a></td><td>' + (i.rules || []).map(esc).join(', ') +
         '</td><td>' + i.detections + '</td><td>' + i.score + '</td><td>' + triageCell + '</td></tr>';
     }).join('') || emptyRow(7, 'no incidents yet'));
 

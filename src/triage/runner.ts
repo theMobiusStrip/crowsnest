@@ -34,16 +34,22 @@ export async function runTriage(store: Store, provider: TriageProvider): Promise
       `SELECT session_id, endpoint_host, worst_severity, rules, detections
        FROM incidents WHERE ended >= now() - INTERVAL 7 DAY`,
     ),
-    store.query<{ session_id: string; endpoint_host: string; detections: string }>(
-      `SELECT session_id, endpoint_host, detections FROM triage FINAL`,
+    store.query<{ session_id: string; endpoint_host: string; detections: string; model: string }>(
+      // prefer a human "manual" verdict deterministically so the guard below can't be fooled by row order
+      `SELECT session_id, endpoint_host, detections, model FROM triage
+       ORDER BY model = 'manual' DESC, created_at DESC LIMIT 1 BY session_id, endpoint_host`,
     ),
   ]);
-  // Re-triage when the incident's detection count changed since its last triage (new tool
-  // activity in the same session), not just on first sighting.
-  const triagedCount = new Map(existing.map((t) => [key(t.session_id, t.endpoint_host), Number(t.detections)]));
+  // Re-triage when the incident's detection count changed since its last triage (new tool activity
+  // in the same session) — but never auto-overwrite a human "manual" verdict.
+  const triaged = new Map(
+    existing.map((t) => [key(t.session_id, t.endpoint_host), { n: Number(t.detections), model: t.model }]),
+  );
   const pending = incidents.filter((i) => {
-    const prev = triagedCount.get(key(i.session_id, i.endpoint_host));
-    return prev === undefined || prev !== Number(i.detections);
+    const prev = triaged.get(key(i.session_id, i.endpoint_host));
+    if (!prev) return true; // never triaged
+    if (prev.model === "manual") return false; // human override — never auto-clobber
+    return prev.n !== Number(i.detections); // re-triage on change
   });
 
   const out: Triage[] = [];

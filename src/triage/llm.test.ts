@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUserContent, type IncidentInput, mockProvider, parseVerdict } from "./llm.js";
+import { buildUserContent, extractText, type IncidentInput, mockProvider, parseVerdict } from "./llm.js";
 
 const incident: IncidentInput = {
   session_id: "s1",
@@ -54,6 +54,16 @@ describe("buildUserContent", () => {
     expect(out.match(/<\/detection>/g)).toHaveLength(1); // only our real inner delimiter survives
     expect(out).not.toContain("<note>"); // injected tag was escaped
     expect(out).toContain("&lt;/incident"); // the injected close became inert data
+  });
+});
+
+describe("extractText", () => {
+  it("picks the text block, skipping a leading thinking block", () => {
+    expect(extractText({ content: [{ type: "thinking" }, { type: "text", text: "hello" }] })).toBe("hello");
+  });
+  it("returns empty string when there is no text block", () => {
+    expect(extractText({ content: [{ type: "thinking" }] })).toBe("");
+    expect(extractText({})).toBe("");
   });
 });
 

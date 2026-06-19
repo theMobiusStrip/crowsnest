@@ -9,12 +9,14 @@ type QueryCall = { sql: string; params?: Record<string, unknown> };
  *  captures the bound params; `opts.throwOnQuery` simulates a store failure. */
 function mockStore(
   rows: Record<string, unknown>[] = [],
-  opts: { throwOnQuery?: boolean; calls?: QueryCall[] } = {},
+  opts: { throwOnQuery?: boolean; calls?: QueryCall[]; triage?: Record<string, unknown>[] } = {},
 ): Store {
   return {
     async append() {},
     async appendDetections() {},
-    async appendTriage() {},
+    async appendTriage(t) {
+      opts.triage?.push(...(t as unknown as Record<string, unknown>[]));
+    },
     async query(sql: string, params?: Record<string, unknown>) {
       opts.calls?.push({ sql, params });
       if (opts.throwOnQuery) throw new Error("clickhouse down");
@@ -170,6 +172,76 @@ describe("fleet-view endpoints", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { incidents: Array<Record<string, unknown>> };
     expect(body.incidents[0].triage).toMatchObject({ verdict: "needs_review", score: 60, model: "mock" });
+  });
+
+  it("GET /v1/incident returns the incident, its detections, and triage", async () => {
+    const row = {
+      session_id: "s1",
+      endpoint_user: "evan",
+      endpoint_host: "prod-1",
+      detections: "1",
+      distinct_rules: "1",
+      rules: ["denied-dangerous"],
+      worst_rank: "3",
+      worst_severity: "high",
+      started: "2026-06-19 00:00:00",
+      ended: "2026-06-19 00:00:30",
+      span_seconds: "30",
+      detection_id: "denied-dangerous:e1",
+      rule: "denied-dangerous",
+      severity: "high",
+      ts: "2026-06-19 00:00:00",
+      summary: "bash denied",
+      detail: "rm -rf",
+      verdict: "needs_review",
+      score: "60",
+      rationale: "looks odd",
+      model: "claude-opus-4-7",
+    };
+    const res = await createServer(mockStore([row])).request("/v1/incident?session=s1&host=prod-1");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { incident: Record<string, unknown>; detections: unknown[]; triage: Record<string, unknown> };
+    expect(body.incident).toMatchObject({ session_id: "s1", worst_severity: "high", sensitivity: 3 });
+    expect(body.detections).toHaveLength(1);
+    expect(body.triage).toMatchObject({ verdict: "needs_review", score: 60, model: "claude-opus-4-7" });
+  });
+});
+
+describe("POST /v1/incident/triage (manual)", () => {
+  it("writes a manual triage and returns 201", async () => {
+    const triage: Record<string, unknown>[] = [];
+    const res = await createServer(mockStore([{ n: "2" }], { triage })).request("/v1/incident/triage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: "s1", host: "prod-1", verdict: "likely_malicious", score: 90, rationale: "confirmed" }),
+    });
+    expect(res.status).toBe(201);
+    expect(triage[0]).toMatchObject({
+      session_id: "s1",
+      endpoint_host: "prod-1",
+      verdict: "likely_malicious",
+      score: 90,
+      model: "manual",
+      detections: 2,
+    });
+  });
+
+  it("rejects an invalid verdict or score with 400", async () => {
+    const res = await createServer(mockStore()).request("/v1/incident/triage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: "s1", host: "prod-1", verdict: "nope", score: 999, rationale: "x" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the incident has no detections", async () => {
+    const res = await createServer(mockStore([])).request("/v1/incident/triage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: "ghost", host: "nope", verdict: "needs_review", score: 50, rationale: "x" }),
+    });
+    expect(res.status).toBe(404);
   });
 });
 
