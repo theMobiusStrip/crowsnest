@@ -29,7 +29,7 @@ describe("loadTriageConfig", () => {
     const c = loadTriageConfig({});
     expect(c.enabled).toBe(false);
     expect(c.provider).toBe("anthropic");
-    expect(c.model).toBeTruthy();
+    expect(c.model).toBe("claude-opus-4-7");
     expect(c.baseUrl).toBe("https://api.anthropic.com");
   });
 

@@ -45,7 +45,7 @@ export function loadTriageConfig(env: NodeJS.ProcessEnv = process.env): TriageCo
   return {
     enabled: /^(1|true|yes|on)$/i.test(env.TRIAGE_ENABLED ?? ""),
     provider: env.TRIAGE_PROVIDER === "mock" ? "mock" : "anthropic",
-    model: env.TRIAGE_MODEL ?? "claude-haiku-4-5",
+    model: env.TRIAGE_MODEL ?? "claude-opus-4-7",
     apiKey: env.ANTHROPIC_API_KEY ?? "",
     baseUrl: (env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/+$/, ""),
   };

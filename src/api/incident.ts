@@ -1,0 +1,200 @@
+/** Self-contained incident detail page, served at GET /spyglass/incident?session=&host=.
+ *  Reads /v1/incident and renders the incident, a node-link graph, advisory + manual triage,
+ *  and all its detections. */
+export const incidentPage = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>incident · crowsnest</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#0b0e14; color:#c9d1d9; padding:2rem 1.25rem; }
+  main { max-width:980px; margin:0 auto; }
+  h1 { font-size:1.6rem; margin:0; color:#e6edf3; }
+  .sub { color:#7d8590; margin:.2rem 0 .4rem; }
+  .desc { color:#8b949e; margin:0 0 1.2rem; max-width:74ch; }
+  .meta { color:#7d8590; margin:0 0 1.2rem; }
+  .row { display:flex; flex-wrap:wrap; gap:.8rem; margin-bottom:1rem; }
+  .card { flex:1; min-width:120px; border:1px solid #21262d; border-radius:10px; padding:.7rem 1rem; background:#0f141c; }
+  .card .n { font-size:1.5rem; font-weight:700; color:#e6edf3; word-break:break-word; }
+  .card .k { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#7d8590; }
+  h2 { font-size:.74rem; text-transform:uppercase; letter-spacing:.08em; color:#7d8590; margin:1.6rem 0 .5rem; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#7d8590; padding:.4rem .5rem; border-bottom:1px solid #30363d; }
+  td { padding:.45rem .5rem; border-bottom:1px solid #161b22; vertical-align:top; }
+  .sev { display:inline-block; min-width:5.2em; text-align:center; padding:0 .45em; border-radius:4px; font-size:.72rem; }
+  .vd { display:inline-block; padding:0 .4em; border-radius:4px; font-size:.72rem; }
+  .critical { background:#f8514933; color:#ff7b72; } .high { background:#db6d2833; color:#f0883e; }
+  .medium { background:#d2992233; color:#e3b341; } .low { background:#3fb95033; color:#7ee787; }
+  .likely_benign { background:#3fb95033; color:#7ee787; } .needs_review { background:#d2992233; color:#e3b341; }
+  .likely_malicious { background:#f8514933; color:#ff7b72; }
+  .muted { color:#7d8590; } a { color:#58a6ff; text-decoration:none; } a:hover { text-decoration:underline; }
+  .tag { font-size:.68rem; padding:0 .4em; border-radius:4px; background:#30363d; color:#adbac7; }
+  .evidence { color:#6e7681; font-size:.85em; white-space:pre-wrap; word-break:break-word; margin-top:.15rem; }
+  svg { background:#0f141c; border:1px solid #21262d; border-radius:10px; display:block; }
+  .mform { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .mform select, .mform input { background:#0f141c; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:.3rem .5rem; font:inherit; }
+  .mform input[type=text] { flex:1; min-width:220px; }
+  .mform button { background:#1f6feb; color:#fff; border:0; border-radius:6px; padding:.35rem .9rem; cursor:pointer; font:inherit; }
+  .mform button:hover { background:#388bfd; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔭 incident</h1>
+  <p class="sub"><a href="/spyglass">← all incidents</a> · <span id="scope" class="muted">loading…</span></p>
+  <p class="desc">An incident is one <b>coble run</b> (session) on one host — all its detections grouped together,
+    with the deterministic rule score and an advisory triage verdict. The graph shows which rules fired; below you
+    can set a manual triage or read each detection's evidence.</p>
+  <p class="meta" id="meta"></p>
+
+  <div class="row" id="cards"></div>
+
+  <h2>Graph — session · host · rules</h2>
+  <div id="graph"></div>
+
+  <h2>Triage <span class="muted">— advisory</span></h2>
+  <div id="triage" class="muted">—</div>
+
+  <h2>Manual triage <span class="muted">— human override (stored as model "manual")</span></h2>
+  <form id="mform" class="mform">
+    <select id="m-verdict">
+      <option value="likely_benign">likely benign</option>
+      <option value="needs_review" selected>needs review</option>
+      <option value="likely_malicious">likely malicious</option>
+    </select>
+    <input id="m-score" type="number" min="0" max="100" value="50" title="risk score 0-100" />
+    <input id="m-rationale" type="text" placeholder="rationale (why)" maxlength="2000" />
+    <button type="submit">save</button>
+    <span id="m-status" class="muted"></span>
+  </form>
+
+  <h2>Detections</h2>
+  <table>
+    <thead><tr><th>time</th><th>severity</th><th>rule</th><th>summary</th></tr></thead>
+    <tbody id="detections"></tbody>
+  </table>
+</main>
+<script>
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); };
+  var enc = encodeURIComponent;
+  var q = new URLSearchParams(location.search);
+  var session = q.get('session') || '', host = q.get('host') || '';
+  var set = function (id, html) { document.getElementById(id).innerHTML = html; };
+  var sevBadge = function (s) { return '<span class="sev ' + esc(s) + '">' + esc(s) + '</span>'; };
+  var SEVRANK = { critical:4, high:3, medium:2, low:1 };
+  var SEVFILL = { critical:'#f85149', high:'#db6d28', medium:'#d29922', low:'#3fb950' };
+
+  function fetchJson(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function edge(x1, y1, x2, y2) {
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#30363d" stroke-width="1.5"/>';
+  }
+  function nodeBox(x, y, w, label, fill, color) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="32" rx="6" fill="' + fill + '" stroke="#30363d"/>' +
+      '<text x="' + (x + w / 2) + '" y="' + (y + 20) + '" text-anchor="middle" fill="' + color + '" font-size="11">' + label + '</text>';
+  }
+  function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+  function renderGraph(inc, dets) {
+    var byRule = {};
+    (dets || []).forEach(function (d) {
+      var r = byRule[d.rule] || (byRule[d.rule] = { count: 0, rank: 0, sev: 'low' });
+      r.count++;
+      var rk = SEVRANK[d.severity] || 0;
+      if (rk > r.rank) { r.rank = rk; r.sev = d.severity; }
+    });
+    var rules = Object.keys(byRule);
+    if (!rules.length) { set('graph', '<p class="muted">no detections to graph</p>'); return; }
+    var H = Math.max(150, 30 + rules.length * 54), cy = Math.round(H / 2);
+    var s = ['<svg viewBox="0 0 720 ' + H + '" width="100%" height="' + H + '">'];
+    s.push(edge(240, cy, 290, cy)); // host → session
+    rules.forEach(function (r, i) { s.push(edge(490, cy, 560, 31 + i * 54)); }); // session → rule
+    s.push(nodeBox(60, cy - 16, 180, esc(clip(inc.endpoint_host, 22)), '#30363d', '#adbac7'));
+    s.push(nodeBox(290, cy - 16, 200, esc(clip('session ' + inc.session_id, 26)), '#1f6feb55', '#e6edf3'));
+    rules.forEach(function (r, i) {
+      var info = byRule[r];
+      s.push(nodeBox(560, 31 + i * 54 - 16, 150, esc(clip(r, 16)) + ' (' + info.count + ')', SEVFILL[info.sev] + '55', '#e6edf3'));
+    });
+    s.push('</svg>');
+    set('graph', s.join(''));
+  }
+
+  function render(d) {
+    var inc = d.incident, t = d.triage, dets = d.detections || [];
+    document.getElementById('scope').textContent = host + ' · session ' + session;
+    if (!inc) {
+      set('meta', ''); set('cards', '<div class="muted">incident not found</div>');
+      set('graph', ''); set('triage', '<span class="muted">—</span>');
+      set('detections', '<tr><td colspan="4" class="muted">no detections</td></tr>');
+      return;
+    }
+    set('meta', esc(inc.endpoint_user) + '@' + esc(inc.endpoint_host) + ' · ' + esc(inc.started) + ' → ' + esc(inc.ended));
+    var cards = [
+      ['worst severity', sevBadge(inc.worst_severity)],
+      ['detections', esc(inc.detections)],
+      ['distinct rules', esc(inc.distinct_rules)],
+      ['rule score', esc(inc.score)],
+    ];
+    set('cards', cards.map(function (kv) {
+      return '<div class="card"><div class="n">' + kv[1] + '</div><div class="k">' + kv[0] + '</div></div>';
+    }).join(''));
+
+    renderGraph(inc, dets);
+
+    set('triage', t
+      ? '<span class="vd ' + esc(t.verdict) + '">' + esc(String(t.verdict).replace(/_/g, ' ')) + '</span> ' +
+        esc(t.score) + (t.rationale ? ' <span class="muted">— ' + esc(t.rationale) + '</span>' : '') +
+        (t.model ? ' <span class="tag">' + esc(t.model) + '</span>' : '')
+      : '<span class="muted">not triaged yet</span>');
+    // prefill the manual form from the current verdict
+    if (t) {
+      document.getElementById('m-verdict').value = t.verdict;
+      document.getElementById('m-score').value = t.score;
+      document.getElementById('m-rationale').value = t.rationale || '';
+    }
+
+    set('detections', dets.map(function (x) {
+      var evidence = x.detail ? '<div class="evidence">' + esc(x.detail) + '</div>' : '';
+      return '<tr><td class="muted">' + esc(x.ts) + '</td><td>' + sevBadge(x.severity) + '</td><td>' +
+        esc(x.rule) + '</td><td>' + esc(x.summary) + evidence + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="muted">no detections</td></tr>');
+  }
+
+  function load() {
+    return fetchJson('/v1/incident?session=' + enc(session) + '&host=' + enc(host)).then(render);
+  }
+
+  document.getElementById('mform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var status = document.getElementById('m-status');
+    status.textContent = 'saving…';
+    fetch('/v1/incident/triage', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session: session, host: host,
+        verdict: document.getElementById('m-verdict').value,
+        score: Number(document.getElementById('m-score').value),
+        rationale: document.getElementById('m-rationale').value,
+      }),
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      status.textContent = 'saved ✓';
+      return load();
+    }).catch(function (err) { status.textContent = 'error: ' + err.message; });
+  });
+
+  load().catch(function (e) { document.getElementById('scope').textContent = 'error: ' + e.message; });
+</script>
+</body>
+</html>`;

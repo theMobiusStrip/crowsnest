@@ -1,5 +1,16 @@
 import type { Context, Hono } from "hono";
+import { z } from "zod";
+import { TriageVerdict } from "../schema.js";
 import type { Store } from "../store/store.js";
+
+/** Body for manual (human) triage of an incident. */
+const ManualTriageSchema = z.object({
+  session: z.string().min(1),
+  host: z.string().min(1),
+  verdict: TriageVerdict,
+  score: z.number().int().min(0).max(100),
+  rationale: z.string().max(2000),
+});
 
 /** prod/ci/dev weighting from a host-naming convention (no infra lookup table needed).
  *  Anchored to `prod-*` / `ci-*` / `stg-*` / `staging-*` (or the bare word) so unrelated
@@ -185,8 +196,11 @@ export function registerReadApi(app: Hono, store: Store): void {
         host ? { host } : undefined,
       ),
       // Advisory triage, joined for display only — never changes the rule score or the sort.
+      // Prefer a human "manual" verdict deterministically (not by timestamp), so an LLM row
+      // written later can never win over it.
       store.query<{ session_id: string; endpoint_host: string; verdict: string; score: string; rationale: string; model: string }>(
-        `SELECT session_id, endpoint_host, verdict, score, rationale, model FROM triage FINAL`,
+        `SELECT session_id, endpoint_host, verdict, score, rationale, model FROM triage
+         ORDER BY model = 'manual' DESC, created_at DESC LIMIT 1 BY session_id, endpoint_host`,
       ),
     ]);
     const triageByKey = new Map(
@@ -212,5 +226,83 @@ export function registerReadApi(app: Hono, store: Store): void {
       })
       .sort((a, b) => b.score - a.score);
     return c.json({ incidents });
+  });
+
+  // Single incident detail — the incident, its detections, and its advisory triage. ?session= &host=
+  app.get("/v1/incident", async (c) => {
+    const session = c.req.query("session") ?? "";
+    const host = c.req.query("host") ?? "";
+    const params = { session, host };
+    const [incRows, detections, triageRows] = await Promise.all([
+      store.query<{
+        session_id: string;
+        endpoint_user: string;
+        endpoint_host: string;
+        detections: string;
+        distinct_rules: string;
+        rules: string[];
+        worst_rank: string;
+        worst_severity: string;
+        started: string;
+        ended: string;
+        span_seconds: string;
+      }>(
+        `SELECT session_id, endpoint_user, endpoint_host, detections, distinct_rules, rules,
+                worst_rank, worst_severity, started, ended,
+                dateDiff('second', started, ended) AS span_seconds
+         FROM incidents WHERE session_id = {session:String} AND endpoint_host = {host:String}`,
+        params,
+      ),
+      store.query(
+        `SELECT detection_id, rule, severity, ts, event_id, endpoint_user, endpoint_host, session_id, summary, detail
+         FROM detections FINAL WHERE session_id = {session:String} AND endpoint_host = {host:String} ORDER BY ts`,
+        params,
+      ),
+      store.query<{ verdict: string; score: string; rationale: string; model: string }>(
+        `SELECT verdict, score, rationale, model FROM triage
+         WHERE session_id = {session:String} AND endpoint_host = {host:String}
+         ORDER BY model = 'manual' DESC, created_at DESC LIMIT 1`,
+        params,
+      ),
+    ]);
+    const r = incRows[0];
+    const incident = r
+      ? (() => {
+          const sensitivity = hostSensitivity(r.endpoint_host);
+          const burst = Number(r.detections) / Math.max(1, Number(r.span_seconds) / 60);
+          const score = Number(r.worst_rank) * Number(r.distinct_rules) * sensitivity * Math.max(1, burst);
+          return { ...r, sensitivity, burst: Math.round(burst * 100) / 100, score: Math.round(score * 100) / 100 };
+        })()
+      : null;
+    const t = triageRows[0];
+    const triage = t ? { verdict: t.verdict, score: Number(t.score), rationale: t.rationale, model: t.model } : null;
+    return c.json({ incident, detections, triage });
+  });
+
+  // Manual triage — a human sets/overrides an incident's advisory verdict. Stored in the same
+  // triage table (model "manual"); latest wins (ReplacingMergeTree by created_at). Still ADVISORY:
+  // it never changes detections or rule severities. (No auth — MVP non-goal; behind the trust boundary.)
+  app.post("/v1/incident/triage", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
+    const parsed = ManualTriageSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "invalid triage", issues: parsed.error.issues }, 400);
+    }
+    const { session, host, verdict, score, rationale } = parsed.data;
+    const cnt = await store.query<{ n: string }>(
+      `SELECT count() AS n FROM detections FINAL WHERE session_id = {s:String} AND endpoint_host = {h:String}`,
+      { s: session, h: host },
+    );
+    const n = Number(cnt[0]?.n ?? 0);
+    if (n === 0) return c.json({ error: "no such incident" }, 404);
+    await store.appendTriage([
+      { session_id: session, endpoint_host: host, verdict, score, rationale, detections: n, model: "manual" },
+    ]);
+    return c.json({ ok: true }, 201);
   });
 }

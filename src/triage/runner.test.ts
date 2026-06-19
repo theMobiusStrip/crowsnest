@@ -56,6 +56,12 @@ describe("runTriage", () => {
     expect(await runTriage(store, mockProvider())).toEqual({ candidates: 1, triaged: 1 });
   });
 
+  it("never auto-overwrites a manual triage, even when the count changed", async () => {
+    const grown = { ...inc, detections: "5" };
+    const { store } = mockStore([grown], [{ session_id: "s1", endpoint_host: "prod-1", detections: "1", model: "manual" }]);
+    expect(await runTriage(store, mockProvider())).toEqual({ candidates: 0, triaged: 0 });
+  });
+
   it("never writes detections — advisory, augment-never-override", async () => {
     const { store, appendDetections } = mockStore([inc]);
     await runTriage(store, mockProvider());

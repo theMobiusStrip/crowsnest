@@ -1,23 +1,28 @@
 # crowsnest
 
-Local-first ingest + detection service for [coble](https://github.com/theMobiusStrip/coble)
-fleet logs — it watches the fleet of cobles, runs detections, and surfaces daily results.
-Starts local; architected to scale to multi-endpoint without a rewrite.
+Local-first ingest + detection service for the [coble](https://github.com/theMobiusStrip/coble)
+coding-agent fleet. Agents ship their tool-decision events here; crowsnest stores them, runs
+deterministic SQL **detections** (plus optional advisory **LLM triage**), and surfaces them in
+**spyglass** — a dashboard of endpoints, rules, and incidents. Starts local on one machine;
+architected to scale to multi-endpoint without a rewrite.
 
 ## Status
 
-**M1 — ingest.** `POST /v1/events` validates event batches (zod) and writes to ClickHouse
-via a pluggable `Store`. Detection runner + rules land in M2.
+Shipped (local-first): ingest → ClickHouse · detection runner + SQL rules → `detections` ·
+**spyglass** dashboard (fleet view · cross-host correlation · incident detail) · advisory
+**LLM triage** (Anthropic, default off). Next: durable daemon, migration runner.
 
 ## Quickstart (dev)
 
 ```bash
 npm install
-npm run ch:up      # ClickHouse via Docker (tables auto-created from migrations/)
-npm run dev        # crowsnest ingest server on :8787
+npm run ch:up      # ClickHouse via Docker (migrations auto-applied on first init)
+npm run dev        # ingest + read API + spyglass on :8787
+npm run detect     # scan events → write detections
 ```
 
-- Ingest: `POST http://localhost:8787/v1/events` · health: `GET /healthz` · landing: `GET /`
+- **Dashboard:** http://localhost:8787/spyglass · ingest: `POST /v1/events` · health: `GET /healthz`
+- **Read API:** `/v1/detections` · `/v1/stats` · `/v1/fleet` · `/v1/correlations` · `/v1/incident(s)`
 - ClickHouse HTTP: http://localhost:8123
 
 Send a test event:
@@ -31,17 +36,26 @@ curl -sS localhost:8787/v1/events -H 'content-type: application/json' -d '{
 }'   # → {"accepted":1}
 ```
 
+Optional **LLM triage** (advisory, per incident, default off — augment-never-override):
+
+```bash
+TRIAGE_ENABLED=1 ANTHROPIC_API_KEY=sk-... npm run triage   # ANTHROPIC_BASE_URL/TRIAGE_MODEL configurable
+```
+
 ## Architecture
 
-A stateless HTTP ingest writes events to a pluggable `Store` (ClickHouse), decoupled from a
-scheduled detection runner that emits `findings`. Network-shaped and stateless from day one,
-so it scales from this single local service to multi-endpoint without a rewrite.
+Stateless HTTP ingest → pluggable `Store` (ClickHouse) → scheduled detection runner emitting
+`detections` → read API → spyglass. Network-shaped and stateless from day one, so it scales from
+this single local service to multi-endpoint without a rewrite. Detections are deterministic SQL
+rules; LLM triage only **augments** them (advisory verdict/score), never overrides.
 
 ```text
 crowsnest/
-  src/schema.ts         # zod Event contract (shared with coble's sink)
-  src/ingest/server.ts  # POST /v1/events (stateless)
-  src/store/            # Store interface + ClickHouse impl
-  migrations/           # ClickHouse DDL (events, findings)
-  docker/               # docker-compose: ClickHouse
+  src/schema.ts          # zod Event/Detection contract (shared with coble's sink)
+  src/ingest/            # POST /v1/events (stateless) + landing page
+  src/store/             # Store interface + ClickHouse impl
+  src/detection/         # SQL rules + runner → detections
+  src/api/  src/triage/  # read API, spyglass dashboard, advisory LLM triage
+  migrations/            # ClickHouse DDL (events, detections, incidents view, triage)
+  docker/                # docker-compose: ClickHouse
 ```
