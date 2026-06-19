@@ -13,6 +13,10 @@ import { spyglassPage } from "../api/spyglass.js";
 export function createServer(store: Store): Hono {
   const app = new Hono();
 
+  // Any uncaught handler error (e.g. a ClickHouse failure in the read API) returns
+  // JSON, not Hono's default text/plain, so clients can always parse the response.
+  app.onError((err, c) => c.json({ error: "internal error", detail: String(err) }, 500));
+
   app.get("/", (c) => c.html(landingPage));
 
   app.get("/healthz", async (c) => {

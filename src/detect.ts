@@ -1,4 +1,4 @@
-import { loadConfig } from "./config.js";
+import { loadConfig, parseIntervalMs } from "./config.js";
 import { runDetections } from "./detection/runner.js";
 import { createClickHouseStore } from "./store/clickhouse.js";
 
@@ -13,11 +13,32 @@ async function runOnce(): Promise<void> {
   for (const r of results) if (r.found > 0) console.log(`  ${r.rule.padEnd(24)} ${r.found}`);
 }
 
-const intervalMs = Number(process.env.DETECT_INTERVAL_MS ?? 0);
-await runOnce();
+const intervalMs = parseIntervalMs(process.env.DETECT_INTERVAL_MS);
+
 if (intervalMs > 0) {
+  // Self-rescheduling loop: the next run waits for the previous one (no overlapping
+  // scans), and a single failed run logs and continues instead of killing the loop.
+  let running = true;
+  const shutdown = () => {
+    running = false;
+    void store.close().finally(() => process.exit(0));
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
   console.log(`scheduled every ${intervalMs}ms (Ctrl+C to stop)`);
-  setInterval(() => void runOnce().catch((e) => console.error("detection error:", e)), intervalMs);
+  while (running) {
+    await runOnce().catch((e) => console.error("detection error:", e));
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 } else {
-  await store.close();
+  // One-shot: a failure exits non-zero cleanly (no raw unhandled rejection) and the
+  // store is always closed.
+  try {
+    await runOnce();
+  } catch (e) {
+    console.error("detection error:", e);
+    process.exitCode = 1;
+  } finally {
+    await store.close();
+  }
 }

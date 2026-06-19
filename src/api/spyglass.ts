@@ -49,10 +49,15 @@ export const spyglassPage = `<!doctype html>
   const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
   const sevOrder = ['critical','high','medium','low'];
 
+  async function fetchJson(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+    return r.json();
+  }
   async function load() {
     const [stats, found] = await Promise.all([
-      fetch('/v1/stats').then((r) => r.json()),
-      fetch('/v1/findings?limit=100').then((r) => r.json()),
+      fetchJson('/v1/stats'),
+      fetchJson('/v1/findings?limit=100'),
     ]);
 
     const bySev = Object.fromEntries((stats.bySeverity || []).map((r) => [r.severity, Number(r.n)]));
@@ -74,8 +79,13 @@ export const spyglassPage = `<!doctype html>
 
     document.getElementById('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
   }
-  load().catch((e) => { document.getElementById('updated').textContent = 'error: ' + e.message; });
-  setInterval(() => load().catch(() => {}), 15000);
+  // Both the initial load and each refresh surface failures on the badge, so a
+  // ClickHouse blip after first paint shows "stale" instead of silently freezing.
+  function refresh() {
+    load().catch((e) => { document.getElementById('updated').textContent = 'stale — error: ' + e.message; });
+  }
+  refresh();
+  setInterval(refresh, 15000);
 </script>
 </body>
 </html>`;

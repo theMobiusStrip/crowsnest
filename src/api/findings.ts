@@ -8,7 +8,10 @@ import type { Store } from "../store/store.js";
 export function registerReadApi(app: Hono, store: Store): void {
   // Recent findings, newest first. Optional ?severity= &rule= &limit=
   app.get("/v1/findings", async (c) => {
-    const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 100), 1), 1000);
+    // ?? only guards a *missing* param; a present-but-non-numeric value (?limit=abc)
+    // would be NaN and serialize to an invalid UInt32. Coerce to a finite default.
+    const raw = Number(c.req.query("limit") ?? 100);
+    const limit = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), 1000) : 100;
     const severity = c.req.query("severity");
     const rule = c.req.query("rule");
     const where: string[] = [];

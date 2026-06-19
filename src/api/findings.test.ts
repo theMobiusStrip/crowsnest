@@ -2,13 +2,21 @@ import { describe, expect, it } from "vitest";
 import { createServer } from "../ingest/server.js";
 import type { Store } from "../store/store.js";
 
+type QueryCall = { sql: string; params?: Record<string, unknown> };
+
 /** Store whose `query` returns canned rows for any SQL — tests the read API
- *  wiring without ClickHouse (SQL correctness is covered E2E). */
-function mockStore(rows: Record<string, unknown>[] = []): Store {
+ *  wiring without ClickHouse (SQL correctness is covered E2E). `opts.calls`
+ *  captures the bound params; `opts.throwOnQuery` simulates a store failure. */
+function mockStore(
+  rows: Record<string, unknown>[] = [],
+  opts: { throwOnQuery?: boolean; calls?: QueryCall[] } = {},
+): Store {
   return {
     async append() {},
     async appendFindings() {},
-    async query() {
+    async query(sql: string, params?: Record<string, unknown>) {
+      opts.calls?.push({ sql, params });
+      if (opts.throwOnQuery) throw new Error("clickhouse down");
       return rows as never;
     },
     async ping() {
@@ -38,6 +46,34 @@ describe("GET /v1/findings", () => {
     const body = (await res.json()) as { findings: unknown[] };
     expect(body.findings).toHaveLength(1);
     expect(body.findings[0]).toMatchObject({ rule: "denied-dangerous", severity: "high" });
+  });
+});
+
+describe("GET /v1/findings ?limit handling", () => {
+  it("falls back to the default (not NaN) for a non-numeric limit", async () => {
+    const calls: QueryCall[] = [];
+    const res = await createServer(mockStore([], { calls })).request("/v1/findings?limit=abc");
+    expect(res.status).toBe(200);
+    expect(calls[0]?.params?.limit).toBe(100);
+  });
+
+  it("clamps out-of-range limits into [1, 1000]", async () => {
+    const high: QueryCall[] = [];
+    await createServer(mockStore([], { calls: high })).request("/v1/findings?limit=99999");
+    expect(high[0]?.params?.limit).toBe(1000);
+
+    const low: QueryCall[] = [];
+    await createServer(mockStore([], { calls: low })).request("/v1/findings?limit=-5");
+    expect(low[0]?.params?.limit).toBe(1);
+  });
+});
+
+describe("read API error handling", () => {
+  it("returns JSON (not text/plain) when a store query fails", async () => {
+    const res = await createServer(mockStore([], { throwOnQuery: true })).request("/v1/findings");
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    expect(await res.json()).toMatchObject({ error: "internal error" });
   });
 });
 

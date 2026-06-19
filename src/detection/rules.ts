@@ -22,24 +22,27 @@ export const rules: Rule[] = [
     id: "denied-dangerous",
     severity: "high",
     title: "Denied dangerous command",
-    sql: `SELECT ${PROJECT} FROM events WHERE decision = 'denied' AND tier = 'dangerous'`,
+    sql: `SELECT ${PROJECT} FROM events FINAL WHERE decision = 'denied' AND tier = 'dangerous'`,
   },
   {
     id: "bypass-mode",
     severity: "medium",
     title: "Bypass mode used",
-    sql: `SELECT ${PROJECT} FROM events WHERE mode = 'bypass'`,
+    sql: `SELECT ${PROJECT} FROM events FINAL WHERE mode = 'bypass'`,
   },
   {
     id: "sandbox-off-dangerous",
     severity: "medium",
     title: "Dangerous call with the sandbox off",
-    sql: `SELECT ${PROJECT} FROM events WHERE sandbox_on = 0 AND tier = 'dangerous'`,
+    sql: `SELECT ${PROJECT} FROM events FINAL WHERE sandbox_on = 0 AND tier = 'dangerous'`,
   },
   {
     id: "denied-read",
-    severity: "high",
-    title: "Denied read (possible secret-path access)",
-    sql: `SELECT ${PROJECT} FROM events WHERE decision = 'denied' AND tool = 'read_file'`,
+    severity: "medium",
+    title: "Blocked read (possible secret-path access)",
+    // coble blocks secret-path reads INSIDE the tool (the deny-read policy throws),
+    // which it audits as decision='error' — not 'denied' (that's only a pre-invoke
+    // rule/mode deny). Match both so the built-in protection's signal isn't missed.
+    sql: `SELECT ${PROJECT} FROM events FINAL WHERE decision IN ('denied', 'error') AND tool = 'read_file'`,
   },
 ];
