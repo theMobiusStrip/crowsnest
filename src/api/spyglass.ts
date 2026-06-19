@@ -1,5 +1,5 @@
 /** Self-contained spyglass dashboard, served at GET /spyglass. Reads /v1/stats +
- *  /v1/findings and renders detection results. No build step. */
+ *  /v1/detections and renders detection results. No build step. */
 export const spyglassPage = `<!doctype html>
 <html lang="en">
 <head>
@@ -39,10 +39,10 @@ export const spyglassPage = `<!doctype html>
   <h2>By rule</h2>
   <table><tbody id="byrule"></tbody></table>
 
-  <h2>Recent findings</h2>
+  <h2>Recent detections</h2>
   <table>
     <thead><tr><th>time</th><th>severity</th><th>rule</th><th>endpoint</th><th>summary</th></tr></thead>
-    <tbody id="findings"></tbody>
+    <tbody id="detections"></tbody>
   </table>
 </main>
 <script>
@@ -57,11 +57,11 @@ export const spyglassPage = `<!doctype html>
   async function load() {
     const [stats, found] = await Promise.all([
       fetchJson('/v1/stats'),
-      fetchJson('/v1/findings?limit=100'),
+      fetchJson('/v1/detections?limit=100'),
     ]);
 
     const bySev = Object.fromEntries((stats.bySeverity || []).map((r) => [r.severity, Number(r.n)]));
-    const cards = [['total', stats.totals?.findings ?? 0], ...sevOrder.map((s) => [s, bySev[s] || 0])];
+    const cards = [['total', stats.totals?.detections ?? 0], ...sevOrder.map((s) => [s, bySev[s] || 0])];
     document.getElementById('cards').innerHTML = cards.map(([k, n]) =>
       \`<div class="card"><div class="n">\${n}</div><div class="k">\${k}</div></div>\`).join('');
 
@@ -69,13 +69,13 @@ export const spyglassPage = `<!doctype html>
     const max = Math.max(1, ...rules.map((r) => Number(r.n)));
     document.getElementById('byrule').innerHTML = rules.map((r) =>
       \`<tr><td style="white-space:nowrap">\${esc(r.rule)}</td><td style="width:60%"><div class="bar" style="width:\${(Number(r.n)/max*100)}%"></div></td><td class="muted">\${r.n}</td></tr>\`).join('')
-      || '<tr><td class="muted">no findings yet</td></tr>';
+      || '<tr><td class="muted">no detections yet</td></tr>';
 
-    const rows = found.findings || [];
-    document.getElementById('findings').innerHTML = rows.map((f) =>
+    const rows = found.detections || [];
+    document.getElementById('detections').innerHTML = rows.map((f) =>
       \`<tr><td class="muted">\${esc(f.ts)}</td><td><span class="sev \${esc(f.severity)}">\${esc(f.severity)}</span></td>\` +
       \`<td>\${esc(f.rule)}</td><td class="muted">\${esc(f.endpoint_user)}@\${esc(f.endpoint_host)}</td><td>\${esc(f.summary)}</td></tr>\`).join('')
-      || '<tr><td colspan="5" class="muted">no findings yet — run the detector</td></tr>';
+      || '<tr><td colspan="5" class="muted">no detections yet — run the detector</td></tr>';
 
     document.getElementById('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
   }

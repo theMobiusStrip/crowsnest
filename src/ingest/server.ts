@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { EventBatchSchema } from "../schema.js";
 import type { Store } from "../store/store.js";
 import { landingPage } from "./landing.js";
-import { registerReadApi } from "../api/findings.js";
+import { registerReadApi } from "../api/detections.js";
 import { spyglassPage } from "../api/spyglass.js";
 
 /**
@@ -49,7 +49,7 @@ export function createServer(store: Store): Hono {
   });
 
   app.get("/spyglass", (c) => c.html(spyglassPage));
-  registerReadApi(app, store); // GET /v1/findings, GET /v1/stats
+  registerReadApi(app, store); // GET /v1/detections, GET /v1/stats
 
   return app;
 }

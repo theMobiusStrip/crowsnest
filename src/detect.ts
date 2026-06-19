@@ -9,7 +9,7 @@ const store = createClickHouseStore({ url: cfg.clickhouseUrl, database: cfg.clic
 async function runOnce(): Promise<void> {
   const results = await runDetections(store);
   const total = results.reduce((n, r) => n + r.found, 0);
-  console.log(`[${new Date().toISOString()}] detections: ${total} finding(s)`);
+  console.log(`[${new Date().toISOString()}] detections: ${total} detection(s)`);
   for (const r of results) if (r.found > 0) console.log(`  ${r.rule.padEnd(24)} ${r.found}`);
 }
 

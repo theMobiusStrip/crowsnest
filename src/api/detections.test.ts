@@ -13,7 +13,7 @@ function mockStore(
 ): Store {
   return {
     async append() {},
-    async appendFindings() {},
+    async appendDetections() {},
     async query(sql: string, params?: Record<string, unknown>) {
       opts.calls?.push({ sql, params });
       if (opts.throwOnQuery) throw new Error("clickhouse down");
@@ -26,8 +26,8 @@ function mockStore(
   };
 }
 
-const finding = {
-  finding_id: "denied-dangerous:e1",
+const detection = {
+  detection_id: "denied-dangerous:e1",
   rule: "denied-dangerous",
   severity: "high",
   ts: "2026-06-18T22:00:00.000Z",
@@ -39,38 +39,38 @@ const finding = {
   detail: "rule:deny",
 };
 
-describe("GET /v1/findings", () => {
-  it("returns findings from the store", async () => {
-    const res = await createServer(mockStore([finding])).request("/v1/findings");
+describe("GET /v1/detections", () => {
+  it("returns detections from the store", async () => {
+    const res = await createServer(mockStore([detection])).request("/v1/detections");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { findings: unknown[] };
-    expect(body.findings).toHaveLength(1);
-    expect(body.findings[0]).toMatchObject({ rule: "denied-dangerous", severity: "high" });
+    const body = (await res.json()) as { detections: unknown[] };
+    expect(body.detections).toHaveLength(1);
+    expect(body.detections[0]).toMatchObject({ rule: "denied-dangerous", severity: "high" });
   });
 });
 
-describe("GET /v1/findings ?limit handling", () => {
+describe("GET /v1/detections ?limit handling", () => {
   it("falls back to the default (not NaN) for a non-numeric limit", async () => {
     const calls: QueryCall[] = [];
-    const res = await createServer(mockStore([], { calls })).request("/v1/findings?limit=abc");
+    const res = await createServer(mockStore([], { calls })).request("/v1/detections?limit=abc");
     expect(res.status).toBe(200);
     expect(calls[0]?.params?.limit).toBe(100);
   });
 
   it("clamps out-of-range limits into [1, 1000]", async () => {
     const high: QueryCall[] = [];
-    await createServer(mockStore([], { calls: high })).request("/v1/findings?limit=99999");
+    await createServer(mockStore([], { calls: high })).request("/v1/detections?limit=99999");
     expect(high[0]?.params?.limit).toBe(1000);
 
     const low: QueryCall[] = [];
-    await createServer(mockStore([], { calls: low })).request("/v1/findings?limit=-5");
+    await createServer(mockStore([], { calls: low })).request("/v1/detections?limit=-5");
     expect(low[0]?.params?.limit).toBe(1);
   });
 });
 
 describe("read API error handling", () => {
   it("returns JSON (not text/plain) when a store query fails", async () => {
-    const res = await createServer(mockStore([], { throwOnQuery: true })).request("/v1/findings");
+    const res = await createServer(mockStore([], { throwOnQuery: true })).request("/v1/detections");
     expect(res.status).toBe(500);
     expect(res.headers.get("content-type")).toMatch(/application\/json/);
     expect(await res.json()).toMatchObject({ error: "internal error" });
@@ -79,7 +79,7 @@ describe("read API error handling", () => {
 
 describe("GET /v1/stats", () => {
   it("returns totals + grouped stats", async () => {
-    const res = await createServer(mockStore([{ findings: 3 }])).request("/v1/stats");
+    const res = await createServer(mockStore([{ detections: 3 }])).request("/v1/stats");
     expect(res.status).toBe(200);
     const body = await res.json();
     for (const key of ["totals", "bySeverity", "byRule", "byDay"]) {

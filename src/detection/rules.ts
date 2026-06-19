@@ -1,20 +1,20 @@
-import type { Finding } from "../schema.js";
+import type { Detection } from "../schema.js";
 
 /** A detection rule: a SQL match over `events`, tagged with id + severity. */
 export interface Rule {
   id: string;
-  severity: Finding["severity"];
+  severity: Detection["severity"];
   title: string;
   sql: string;
 }
 
-/** Columns every rule SELECTs so the runner can shape a Finding from each match. */
+/** Columns every rule SELECTs so the runner can shape a Detection from each match. */
 const PROJECT = `event_id, ts, endpoint_user, endpoint_host, session_id,
   concat(tool, ' · ', tier, ' · ', decision) AS summary, detail`;
 
 /**
  * Detections-as-code. Each rule SELECTs matching events; the runner wraps each
- * row into a Finding (`finding_id = rule:event_id`, so re-runs dedup). These ride
+ * row into a Detection (`detection_id = rule:event_id`, so re-runs dedup). These ride
  * on signals coble already produces at the edge — crowsnest aggregates them.
  */
 export const rules: Rule[] = [
