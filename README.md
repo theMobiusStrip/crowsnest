@@ -1,5 +1,10 @@
 # crowsnest
 
+[![CI](https://github.com/theMobiusStrip/crowsnest/actions/workflows/ci.yml/badge.svg)](https://github.com/theMobiusStrip/crowsnest/actions/workflows/ci.yml)
+[![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-brightgreen)](https://nodejs.org/)
+[![TypeScript ^5.6](https://img.shields.io/badge/TypeScript-%5E5.6-3178C6)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Local-first ingest + detection service for the [coble](https://github.com/theMobiusStrip/coble)
 coding-agent fleet. Agents ship their tool-decision events here; crowsnest stores them, runs
 deterministic SQL **detections** (plus optional advisory **LLM triage**), and surfaces them in
